@@ -516,7 +516,7 @@ function renderInChips(){
     const b=document.createElement('button');
     b.type='button'; b.className='chip'+(it.id===selectedInItem?' selected':'');
     b.textContent=it.name;
-    b.onclick=()=>{ selectedInItem=it.id; renderInChips(); };
+    b.onclick=()=>{ alert('タップ検知'); selectedInItem=it.id; renderInChips(); };
     wrap.appendChild(b);
   });
   const cur = items.find(i=>i.id===selectedInItem);
