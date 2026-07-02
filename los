@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ロス帳">
+<meta name="mobile-web-app-capable" content="yes">
+<title>ロス帳 - ロス・廃棄報告</title>
+<style>
+  :root{
+    --paper:#EFEDE7; --paper2:#E6E2D8; --card:#FBFAF7;
+    --ink:#211F1C; --ink-soft:#6b665c; --line:#CBC6BA;
+    --stamp:#4B2E58; --stamp-soft:#EDE6F0; --stamp-deep:#39223F;
+    --alert:#AA3A2E; --alert-soft:#F6E1DD;
+    --good:#3F6B4A; --good-soft:#E4EEE6;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased; padding-bottom:env(safe-area-inset-bottom);
+    overscroll-behavior:none;
+  }
+  .num{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; font-variant-numeric:tabular-nums;}
+
+  header.app{
+    padding:calc(env(safe-area-inset-top) + 14px) 20px 14px;
+    background:var(--paper); border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:10;
+    display:flex; align-items:baseline; justify-content:space-between;
+  }
+  header.app .brand{display:flex; align-items:baseline; gap:10px;}
+  header.app h1{ font-size:22px; margin:0; font-weight:800; letter-spacing:.02em; }
+  header.app .stamp-mark{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:22px; height:22px; border-radius:50%;
+    border:1.6px solid var(--alert); color:var(--alert);
+    font-size:11px; font-weight:800; transform:rotate(-8deg);
+  }
+  header.app .sub{font-size:11px; color:var(--ink-soft);}
+  #offlineBadge{
+    font-size:10.5px; padding:3px 9px; border-radius:20px; font-weight:700;
+    border:1px solid var(--line); color:var(--ink-soft); background:var(--card);
+  }
+  #offlineBadge.off{ color:var(--alert); border-color:var(--alert); background:var(--alert-soft); }
+  #offlineBadge.on{ color:var(--good); border-color:var(--good); background:var(--good-soft); }
+
+  main{ padding:16px 16px 100px; max-width:640px; margin:0 auto; }
+  .screen{ display:none; animation:fade .18s ease; }
+  .screen.active{ display:block; }
+  @keyframes fade{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;} }
+
+  .section-title{
+    font-size:12px; font-weight:800; letter-spacing:.12em; color:var(--alert);
+    text-transform:uppercase; margin:22px 0 10px;
+  }
+  .section-title:first-child{ margin-top:2px; }
+
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px; margin-bottom:12px; overflow:hidden;
+  }
+
+  label.field{ display:block; margin-bottom:14px; }
+  label.field .lbl{ display:block; font-size:12.5px; color:var(--ink-soft); margin-bottom:6px; font-weight:600; }
+  select,input[type=text],input[type=number],input[type=date],textarea{
+    width:100%; font-size:17px; padding:12px 12px; border-radius:10px;
+    border:1.4px solid var(--line); background:#fff; color:var(--ink); font-family:inherit;
+  }
+  input[type=date]{ -webkit-appearance:none; appearance:none; max-width:100%; min-width:0; }
+  select:focus,input:focus,textarea:focus{ outline:2.5px solid var(--alert); outline-offset:1px; border-color:var(--alert); }
+  input[type=number]{ font-family:ui-monospace,"SF Mono",monospace; font-weight:700; }
+  textarea{ min-height:70px; resize:vertical; }
+
+  .chipwrap{ display:flex; flex-wrap:wrap; gap:8px; }
+  .chip{
+    padding:11px 16px; border-radius:20px; border:1.6px solid var(--line);
+    background:#fff; font-size:15px; font-weight:600; color:var(--ink);
+  }
+  .chip.selected{ background:var(--alert); border-color:var(--alert); color:#fff; }
+  .chip.selected.stampstyle{ background:var(--stamp); border-color:var(--stamp); }
+
+  .btn{
+    width:100%; padding:15px; border-radius:12px; border:none; font-size:16.5px;
+    font-weight:800; letter-spacing:.02em; color:#fff; background:var(--alert);
+  }
+  .btn:active{ filter:brightness(0.9); }
+  .btn.ghost{ background:transparent; color:var(--alert); border:1.6px solid var(--alert); font-weight:700; }
+  .btn.stamp{ background:var(--stamp); }
+  .btn.stamp.ghost{ background:transparent; color:var(--stamp); border-color:var(--stamp); }
+  .btn.small{ width:auto; padding:9px 14px; font-size:13.5px; border-radius:9px; }
+  .btn:disabled{ background:var(--line); color:#8a8578; }
+
+  .photobox{
+    border:2px dashed var(--line); border-radius:12px; padding:18px;
+    text-align:center; color:var(--ink-soft); font-size:13.5px;
+  }
+  .photobox img{ max-width:100%; border-radius:10px; display:block; margin:0 auto 10px; }
+  .photo-actions{ display:flex; gap:10px; margin-top:10px; }
+  .photo-actions .btn{ flex:1; }
+
+  .replist{ display:flex; flex-direction:column; gap:10px; }
+  .repcard{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:12px; display:flex; gap:12px;
+  }
+  .repcard .thumb{
+    flex:none; width:64px; height:64px; border-radius:10px; object-fit:cover;
+    background:var(--paper2); border:1px solid var(--line);
+  }
+  .repcard .thumb.noimg{ display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--ink-soft); text-align:center; }
+  .repcard .body{ flex:1; min-width:0; }
+  .repcard .t1{ font-weight:800; font-size:15.5px; }
+  .repcard .t2{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
+  .repcard .t3{ font-size:13px; margin-top:5px; }
+  .repcard .reasontag{
+    display:inline-block; font-size:10.5px; font-weight:800; color:var(--alert);
+    border:1px solid var(--alert); border-radius:20px; padding:2px 8px; margin-top:4px;
+  }
+  .repcard .del{ flex:none; background:none; border:none; color:var(--ink-soft); font-size:12px; padding:4px; align-self:flex-start; }
+
+  .summarybar{
+    display:flex; justify-content:space-between; align-items:center;
+    background:var(--alert-soft); border:1px solid var(--alert); border-radius:var(--radius);
+    padding:14px 16px; margin-bottom:14px;
+  }
+  .summarybar .v{ font-size:22px; font-weight:800; color:var(--alert); }
+  .summarybar .l{ font-size:11.5px; color:var(--alert); font-weight:700; }
+
+  .itemrow{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:8px;
+  }
+  .itemrow button{ background:none; border:none; color:var(--stamp); font-size:13px; font-weight:700; padding:6px 8px; }
+  .itemrow button.del{ color:var(--alert); }
+
+  .empty{ text-align:center; color:var(--ink-soft); font-size:13.5px; padding:30px 10px; }
+
+  nav.tabbar{
+    position:fixed; bottom:0; left:0; right:0; z-index:20;
+    background:var(--card); border-top:1px solid var(--line);
+    padding:8px 6px calc(env(safe-area-inset-bottom) + 6px);
+    display:flex; justify-content:space-around;
+  }
+  nav.tabbar button{
+    background:none; border:none; flex:1; padding:6px 2px; position:relative;
+    font-size:12px; font-weight:700; color:var(--ink-soft);
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+  }
+  nav.tabbar button .dot{ width:6px; height:6px; border-radius:50%; background:transparent; }
+  nav.tabbar button.active{ color:var(--alert); }
+  nav.tabbar button.active .dot{ background:var(--alert); }
+  nav.tabbar button .badge{
+    position:absolute; margin-left:14px; margin-top:-4px;
+    background:var(--stamp); color:#fff; font-size:9px; font-weight:800;
+    border-radius:20px; padding:1px 5px; min-width:14px; text-align:center;
+  }
+
+  .toast{
+    position:fixed; left:50%; bottom:90px; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:#fff; padding:12px 20px; border-radius:30px;
+    font-size:14px; font-weight:600; opacity:0; pointer-events:none; z-index:50;
+    transition:all .25s ease; max-width:85%; text-align:center;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  textarea.exportbox{
+    width:100%; height:200px; font-family:ui-monospace,"SF Mono",monospace; font-size:11.5px;
+    background:#fff; border:1.4px solid var(--line); border-radius:10px; padding:10px; resize:vertical;
+  }
+  .hint{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; }
+  .divider{ height:1px; background:var(--line); margin:18px 0; }
+
+  .lightbox{
+    position:fixed; inset:0; background:rgba(20,18,16,.92); z-index:60;
+    display:none; align-items:center; justify-content:center; padding:24px;
+  }
+  .lightbox.show{ display:flex; }
+  .lightbox img{ max-width:100%; max-height:80vh; border-radius:10px; }
+  .lightbox .lbclose{
+    position:absolute; top:calc(env(safe-area-inset-top) + 16px); right:20px;
+    width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,.15);
+    color:#fff; border:none; font-size:20px;
+  }
+</style>
+</head>
+<body>
+
+<header class="app">
+  <div class="brand">
+    <span class="stamp-mark">損</span>
+    <div>
+      <h1>ロス帳</h1>
+      <div class="sub">ロス・廃棄報告 ・ <span id="appVersion" class="num"></span></div>
+    </div>
+  </div>
+  <span id="offlineBadge">-</span>
+</header>
+
+<main>
+
+  <!-- 報告 -->
+  <section class="screen" id="screen-report">
+    <div class="section-title">ロスを報告</div>
+    <div class="card">
+      <label class="field">
+        <span class="lbl">商品名</span>
+        <div class="chipwrap" id="productChips"></div>
+        <input type="text" id="productCustom" placeholder="商品名を入力" style="display:none; margin-top:10px;">
+        <button type="button" class="btn stamp ghost small" id="productSaveBtn" style="display:none; margin-top:8px;" onclick="saveCustomProductToMaster()">この商品をリストに登録する</button>
+      </label>
+
+      <label class="field">
+        <span class="lbl">数量の単位</span>
+        <div class="chipwrap" id="unitChips">
+          <button type="button" class="chip stampstyle selected" data-unit="kg">kg</button>
+          <button type="button" class="chip stampstyle" data-unit="パック">パック</button>
+          <button type="button" class="chip stampstyle" data-unit="個">個</button>
+        </div>
+      </label>
+      <label class="field">
+        <span class="lbl">数量 (<span id="unitLabel">kg</span>)</span>
+        <input type="number" inputmode="decimal" id="repQty" placeholder="0">
+      </label>
+
+      <label class="field">
+        <span class="lbl">写真（任意）</span>
+        <div id="photoArea">
+          <div class="photobox" id="photoEmpty" onclick="document.getElementById('photoInput').click()">
+            📷 タップして写真を撮る／選ぶ
+          </div>
+          <div id="photoPreviewWrap" style="display:none;">
+            <img id="photoPreview" alt="">
+            <div class="photo-actions">
+              <button type="button" class="btn ghost small" style="width:100%;" onclick="document.getElementById('photoInput').click()">撮り直す</button>
+              <button type="button" class="btn ghost small" style="width:100%; color:var(--ink-soft); border-color:var(--line);" onclick="removePhoto()">削除</button>
+            </div>
+          </div>
+        </div>
+        <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;" onchange="onPhotoSelected(event)">
+      </label>
+
+      <label class="field">
+        <span class="lbl">廃棄理由</span>
+        <div class="chipwrap" id="reasonChips">
+          <button type="button" class="chip" data-reason="期限切れ">期限切れ</button>
+          <button type="button" class="chip" data-reason="傷み・変色">傷み・変色</button>
+          <button type="button" class="chip" data-reason="加工ミス">加工ミス</button>
+          <button type="button" class="chip" data-reason="破損・落下">破損・落下</button>
+          <button type="button" class="chip" data-reason="異物混入">異物混入</button>
+          <button type="button" class="chip" data-reason="検品戻り">検品戻り</button>
+          <button type="button" class="chip" data-reason="その他">その他</button>
+        </div>
+        <input type="text" id="reasonCustom" placeholder="理由を入力" style="display:none; margin-top:10px;">
+      </label>
+
+      <label class="field">
+        <span class="lbl">メモ（任意）</span>
+        <textarea id="repMemo" placeholder="状況の補足など"></textarea>
+      </label>
+
+      <label class="field">
+        <span class="lbl">担当者</span>
+        <input type="text" id="repStaff" placeholder="例）田中">
+      </label>
+
+      <label class="field">
+        <span class="lbl">日付</span>
+        <input type="date" id="repDate">
+      </label>
+
+      <button class="btn" onclick="submitReport()">ロスを記録する</button>
+    </div>
+  </section>
+
+  <!-- 履歴 -->
+  <section class="screen" id="screen-history">
+    <div class="section-title">報告履歴</div>
+    <div class="summarybar">
+      <div><div class="v num" id="totalCount">0</div><div class="l">今月の報告件数</div></div>
+      <div style="text-align:right"><div class="v num" id="totalKgDisplay">0kg</div><div class="l">今月のkg合計</div></div>
+    </div>
+    <div class="replist" id="repList"></div>
+  </section>
+
+  <!-- 設定 -->
+  <section class="screen" id="screen-settings">
+    <div class="section-title">この端末のデフォルト担当者</div>
+    <div class="card">
+      <label class="field">
+        <span class="lbl">担当者名</span>
+        <input type="text" id="staffName" placeholder="例）田中">
+      </label>
+      <p class="hint">報告フォームの担当者欄に、毎回自動で入力される名前やで。</p>
+    </div>
+
+    <div class="section-title">商品マスタ</div>
+    <div class="card">
+      <div id="productMasterList"></div>
+      <div class="divider"></div>
+      <label class="field">
+        <span class="lbl">商品名</span>
+        <input type="text" id="newProductName" placeholder="例）ロース">
+      </label>
+      <button class="btn stamp ghost" onclick="addProduct()">商品を追加</button>
+    </div>
+
+    <div class="section-title">Notion同期用エクスポート</div>
+    <div class="card">
+      <p class="hint">このアプリはこの端末だけで完結して動くで。写真データは大きいのでエクスポートには含めへん（文字情報だけ）。1日の終わりに未同期の報告をコピーして、LINE等で送ってもらったら、Claudeとのチャットで反映するで。</p>
+      <p style="margin:10px 0 14px;"><span class="num" id="unsyncedCount" style="font-weight:800; font-size:18px;">0</span> 件の未同期報告があります</p>
+      <button class="btn stamp" onclick="doExport()">未同期の報告をコピー</button>
+      <div style="height:10px"></div>
+      <textarea class="exportbox" id="exportBox" placeholder="ここにエクスポート内容が表示されます" readonly></textarea>
+      <div style="height:10px"></div>
+      <button class="btn stamp ghost" id="markSyncedBtn" onclick="markSynced()" disabled>↑ コピーした内容を同期済みにする</button>
+    </div>
+
+    <div class="section-title">バックアップ・復元</div>
+    <div class="card">
+      <p class="hint">写真も含めた全データをバックアップできるで。大幅リニューアルの前や機種変更の時に使ってな（写真が多いとファイルが大きくなることがある）。</p>
+      <div style="height:10px"></div>
+      <button class="btn stamp" onclick="downloadBackup()">全データをバックアップ（ファイル保存）</button>
+      <div class="divider"></div>
+      <p class="hint">バックアップファイルから復元する場合はこちら。今のデータは上書きされるで。</p>
+      <div style="height:10px"></div>
+      <input type="file" id="restoreFileInput" accept="application/json" style="display:none;" onchange="restoreFromFile(event)">
+      <button class="btn stamp ghost" onclick="document.getElementById('restoreFileInput').click()">バックアップから復元する</button>
+    </div>
+
+    <div class="section-title">データ管理</div>
+    <div class="card">
+      <p class="hint">全データを消去します。実行前にバックアップまたはNotion同期を済ませておくことをおすすめします。</p>
+      <div style="height:10px"></div>
+      <button class="btn alert" onclick="resetAll()">全データを削除する</button>
+    </div>
+
+    <div class="section-title">バージョン情報</div>
+    <div class="card">
+      <p class="hint"><span class="num" id="appVersionFull" style="font-weight:800; font-size:15px; color:var(--ink);"></span></p>
+      <p class="hint" style="margin-top:6px;" id="appVersionNote"></p>
+    </div>
+  </section>
+
+</main>
+
+<nav class="tabbar">
+  <button data-screen="screen-report"><span class="dot"></span>報告</button>
+  <button data-screen="screen-history" style="position:relative;"><span class="dot"></span>履歴<span class="badge" id="tabBadge" style="display:none;"></span></button>
+  <button data-screen="screen-settings"><span class="dot"></span>設定</button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lbclose" onclick="closeLightbox(event)">×</button>
+  <img id="lightboxImg" alt="">
+</div>
+
+<script>
+/* ---------- バージョン情報 ---------- */
+const APP_VERSION = 'v1';
+const APP_VERSION_DATE = '2026-07-01';
+const APP_VERSION_NOTE = '初版。商品名・数量(kg/パック/個)・写真・廃棄理由・担当者を記録できるロス報告アプリ';
+document.getElementById('appVersion').textContent = APP_VERSION;
+document.getElementById('appVersionFull').textContent = `${APP_VERSION}（${APP_VERSION_DATE}）`;
+document.getElementById('appVersionNote').textContent = APP_VERSION_NOTE;
+
+/* ---------- データ層 (localStorage) ---------- */
+const LS_PRODUCTS='lossbook_products', LS_REPORTS='lossbook_reports', LS_STAFFNAME='lossbook_staffname';
+
+function loadProducts(){ return JSON.parse(localStorage.getItem(LS_PRODUCTS) || 'null') || defaultProducts(); }
+function saveProducts(v){ localStorage.setItem(LS_PRODUCTS, JSON.stringify(v)); }
+function loadReports(){ return JSON.parse(localStorage.getItem(LS_REPORTS) || '[]'); }
+function saveReports(v){ localStorage.setItem(LS_REPORTS, JSON.stringify(v)); }
+function loadStaffName(){ return localStorage.getItem(LS_STAFFNAME) || ''; }
+function saveStaffName(v){ localStorage.setItem(LS_STAFFNAME, v); }
+
+function defaultProducts(){
+  return [
+    {id: uid(), name:'ロース'}, {id: uid(), name:'バラ'},
+    {id: uid(), name:'もも'}, {id: uid(), name:'ヒレ'},
+  ];
+}
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+
+let products = loadProducts();
+let reports = loadReports();
+if(!localStorage.getItem(LS_PRODUCTS)) saveProducts(products);
+
+let selectedProduct = null;
+let productCustomMode = false;
+let selectedUnit = 'kg';
+let selectedReason = null;
+let reasonCustomMode = false;
+let currentPhotoData = null; // base64
+
+/* ---------- 画面切替 ---------- */
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('nav.tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.screen===id));
+  if(id==='screen-history') renderHistory();
+  if(id==='screen-settings') renderSettings();
+  if(id==='screen-report'){
+    renderProductChips();
+    const sf=document.getElementById('repStaff');
+    if(!sf.value) sf.value = loadStaffName();
+  }
+}
+document.querySelectorAll('nav.tabbar button').forEach(b=>{
+  b.addEventListener('click', ()=> showScreen(b.dataset.screen));
+});
+
+/* ---------- トースト ---------- */
+let toastTimer=null;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ---------- 商品チップ ---------- */
+function renderProductChips(){
+  const wrap=document.getElementById('productChips'); wrap.innerHTML='';
+  products.forEach(p=>{
+    const b=document.createElement('button');
+    b.type='button'; b.className='chip stampstyle'+(!productCustomMode && selectedProduct===p.name?' selected':'');
+    b.textContent=p.name;
+    b.onclick=()=>{
+      selectedProduct=p.name; productCustomMode=false;
+      document.getElementById('productCustom').style.display='none';
+      document.getElementById('productSaveBtn').style.display='none';
+      renderProductChips();
+    };
+    wrap.appendChild(b);
+  });
+  const custom=document.createElement('button');
+  custom.type='button'; custom.className='chip stampstyle'+(productCustomMode?' selected':'');
+  custom.textContent='＋ 自由入力';
+  custom.onclick=()=>{
+    productCustomMode=true; selectedProduct=null;
+    document.getElementById('productCustom').style.display='block';
+    document.getElementById('productCustom').focus();
+    renderProductChips(); updateProductSaveBtn();
+  };
+  wrap.appendChild(custom);
+}
+document.getElementById('productCustom').addEventListener('input', updateProductSaveBtn);
+function updateProductSaveBtn(){
+  const val=document.getElementById('productCustom').value.trim();
+  document.getElementById('productSaveBtn').style.display=(productCustomMode && val)?'block':'none';
+}
+function saveCustomProductToMaster(){
+  const val=document.getElementById('productCustom').value.trim();
+  if(!val) return;
+  if(!products.find(p=>p.name===val)){
+    products.push({id:uid(), name:val}); saveProducts(products);
+    toast(`「${val}」をリストに登録したで`);
+  }
+  document.getElementById('productSaveBtn').style.display='none';
+}
+
+/* ---------- 単位チップ ---------- */
+document.querySelectorAll('#unitChips .chip').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('#unitChips .chip').forEach(x=>x.classList.remove('selected'));
+    b.classList.add('selected');
+    selectedUnit=b.dataset.unit;
+    document.getElementById('unitLabel').textContent=selectedUnit;
+  });
+});
+
+/* ---------- 理由チップ ---------- */
+document.querySelectorAll('#reasonChips .chip').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('#reasonChips .chip').forEach(x=>x.classList.remove('selected'));
+    b.classList.add('selected');
+    selectedReason=b.dataset.reason;
+    reasonCustomMode = (selectedReason==='その他');
+    document.getElementById('reasonCustom').style.display = reasonCustomMode ? 'block':'none';
+    if(reasonCustomMode) document.getElementById('reasonCustom').focus();
+  });
+});
+
+/* ---------- 写真 ---------- */
+function onPhotoSelected(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  compressImage(file, 900, 0.6).then(dataUrl=>{
+    currentPhotoData = dataUrl;
+    document.getElementById('photoPreview').src = dataUrl;
+    document.getElementById('photoEmpty').style.display='none';
+    document.getElementById('photoPreviewWrap').style.display='block';
+  }).catch(()=>{ toast('写真の読み込みに失敗したで'); });
+  e.target.value='';
+}
+function removePhoto(){
+  currentPhotoData=null;
+  document.getElementById('photoEmpty').style.display='block';
+  document.getElementById('photoPreviewWrap').style.display='none';
+}
+function compressImage(file, maxDim, quality){
+  return new Promise((resolve, reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{
+        let w=img.width, h=img.height;
+        if(w>h && w>maxDim){ h=Math.round(h*maxDim/w); w=maxDim; }
+        else if(h>=w && h>maxDim){ w=Math.round(w*maxDim/h); h=maxDim; }
+        const canvas=document.createElement('canvas');
+        canvas.width=w; canvas.height=h;
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(img,0,0,w,h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror=reject;
+      img.src=reader.result;
+    };
+    reader.onerror=reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ---------- 報告フォーム ---------- */
+document.getElementById('repDate').value = todayStr();
+
+function submitReport(){
+  const product = productCustomMode ? document.getElementById('productCustom').value.trim() : (selectedProduct||'');
+  if(!product){ toast('商品名を選ぶか入力してな'); return; }
+  const qty=parseFloat(document.getElementById('repQty').value);
+  if(!qty || qty<=0){ toast('数量を入力してな'); return; }
+  const reason = reasonCustomMode ? document.getElementById('reasonCustom').value.trim() : (selectedReason||'');
+  if(!reason){ toast('廃棄理由を選んでな'); return; }
+  const memo=document.getElementById('repMemo').value.trim();
+  const staff=document.getElementById('repStaff').value.trim();
+  const date=document.getElementById('repDate').value || todayStr();
+
+  reports.push({
+    id:uid(), product, qty, unit:selectedUnit, reason, memo, staff, date,
+    photo: currentPhotoData, ts:Date.now(), synced:false
+  });
+  saveReports(reports);
+
+  // リセット
+  document.getElementById('repQty').value='';
+  document.getElementById('repMemo').value='';
+  removePhoto();
+  productCustomMode=false; selectedProduct=null;
+  document.getElementById('productCustom').value='';
+  document.getElementById('productCustom').style.display='none';
+  document.getElementById('productSaveBtn').style.display='none';
+  renderProductChips();
+  selectedReason=null; reasonCustomMode=false;
+  document.querySelectorAll('#reasonChips .chip').forEach(x=>x.classList.remove('selected'));
+  document.getElementById('reasonCustom').value='';
+  document.getElementById('reasonCustom').style.display='none';
+
+  toast(`${product} ${qty}${selectedUnit} のロスを記録したで`);
+  refreshBadges();
+}
+
+/* ---------- 履歴 ---------- */
+function renderHistory(){
+  const list=document.getElementById('repList');
+  const sorted=[...reports].sort((a,b)=>b.ts-a.ts);
+  if(sorted.length===0){ list.innerHTML='<div class="empty">まだ報告がないで</div>'; }
+  else{
+    list.innerHTML='';
+    sorted.forEach(r=>{
+      const card=document.createElement('div'); card.className='repcard';
+      const thumbHtml = r.photo
+        ? `<img class="thumb" src="${r.photo}" onclick="openLightbox('${r.id}')">`
+        : `<div class="thumb noimg">写真<br>なし</div>`;
+      card.innerHTML=`
+        ${thumbHtml}
+        <div class="body">
+          <div class="t1">${esc(r.product)}</div>
+          <div class="t2 num">${r.qty}${r.unit} ・ ${r.date} ・ ${esc(r.staff||'担当者未記入')}</div>
+          ${r.memo?`<div class="t3">${esc(r.memo)}</div>`:''}
+          <span class="reasontag">${esc(r.reason)}</span>
+          ${r.synced?'<span class="reasontag" style="color:var(--good); border-color:var(--good); margin-left:6px;">同期済み</span>':''}
+        </div>
+        <button class="del" onclick="deleteReport('${r.id}')">削除</button>`;
+      list.appendChild(card);
+    });
+  }
+  // 今月の集計
+  const now=new Date(); const ym=now.toISOString().slice(0,7);
+  const thisMonth=reports.filter(r=>r.date.startsWith(ym));
+  document.getElementById('totalCount').textContent=thisMonth.length;
+  const kgSum=thisMonth.filter(r=>r.unit==='kg').reduce((a,b)=>a+b.qty,0);
+  document.getElementById('totalKgDisplay').textContent=(Math.round(kgSum*10)/10)+'kg';
+  refreshBadges();
+}
+function deleteReport(id){
+  if(!confirm('この報告を削除する？（写真も消えるで）')) return;
+  reports=reports.filter(r=>r.id!==id);
+  saveReports(reports);
+  renderHistory();
+}
+function openLightbox(id){
+  const r=reports.find(x=>x.id===id);
+  if(!r || !r.photo) return;
+  document.getElementById('lightboxImg').src=r.photo;
+  document.getElementById('lightbox').classList.add('show');
+}
+function closeLightbox(e){
+  if(e) e.stopPropagation();
+  document.getElementById('lightbox').classList.remove('show');
+}
+
+function refreshBadges(){
+  const unsynced = reports.filter(r=>!r.synced).length;
+  const badge=document.getElementById('tabBadge');
+  if(unsynced>0){ badge.style.display='inline-block'; badge.textContent=unsynced; }
+  else{ badge.style.display='none'; }
+  const uc = document.getElementById('unsyncedCount');
+  if(uc) uc.textContent = unsynced;
+}
+
+/* ---------- 設定タブ ---------- */
+function renderSettings(){
+  document.getElementById('staffName').value = loadStaffName();
+  const wrap=document.getElementById('productMasterList'); wrap.innerHTML='';
+  if(products.length===0){ wrap.innerHTML='<div class="empty">商品がまだないで</div>'; }
+  products.forEach(p=>{
+    const row=document.createElement('div'); row.className='itemrow';
+    row.innerHTML=`<div style="font-weight:700;">${esc(p.name)}</div><button class="del" onclick="deleteProduct('${p.id}')">削除</button>`;
+    wrap.appendChild(row);
+  });
+  refreshBadges();
+}
+
+function addProduct(){
+  const name=document.getElementById('newProductName').value.trim();
+  if(!name){ toast('商品名を入力してな'); return; }
+  if(products.find(p=>p.name===name)){ toast('もう登録されてるで'); return; }
+  products.push({id:uid(), name});
+  saveProducts(products);
+  document.getElementById('newProductName').value='';
+  toast(`「${name}」を登録したで`);
+  renderSettings();
+}
+function deleteProduct(id){
+  if(!confirm('この商品をリストから削除する？（過去の報告は残るで）')) return;
+  products=products.filter(p=>p.id!==id);
+  saveProducts(products);
+  renderSettings();
+}
+
+/* ---------- エクスポート(文字情報のみ) ---------- */
+function doExport(){
+  const unsynced = reports.filter(r=>!r.synced);
+  if(unsynced.length===0){ toast('未同期の報告はないで'); return; }
+  const records = unsynced.map(r=>({
+    商品: r.product, 数量: r.qty, 単位: r.unit, 理由: r.reason,
+    メモ: r.memo||'', 担当者: r.staff||'', 日付: r.date, 写真: r.photo ? 'あり':'なし'
+  }));
+  const payload = { エクスポート日時: new Date().toLocaleString('ja-JP'), 報告: records };
+  const text = JSON.stringify(payload, null, 2);
+  const box=document.getElementById('exportBox');
+  box.value=text;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>toast('コピーしたで。LINE等で送るか、Claudeのチャットに貼り付けてな')).catch(()=>{
+      box.select(); toast('自動コピーできんかった。手動で選択してコピーしてな');
+    });
+  } else { box.select(); toast('このテキストを選択してコピーしてな'); }
+  document.getElementById('markSyncedBtn').disabled=false;
+  window._pendingSyncIds = unsynced.map(r=>r.id);
+}
+function markSynced(){
+  if(!window._pendingSyncIds){ toast('先にコピーしてな'); return; }
+  reports = reports.map(r=> window._pendingSyncIds.includes(r.id) ? {...r, synced:true} : r);
+  saveReports(reports);
+  window._pendingSyncIds=null;
+  document.getElementById('markSyncedBtn').disabled=true;
+  document.getElementById('exportBox').value='';
+  toast('同期済みにしたで');
+  refreshBadges(); renderHistory();
+}
+
+/* ---------- バックアップ・復元(写真込み) ---------- */
+function downloadBackup(){
+  const payload = { app:'ロス帳', version:1, exportedAt:new Date().toISOString(), products, staffName:loadStaffName(), reports };
+  const text = JSON.stringify(payload, null, 2);
+  const blob = new Blob([text], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`ロス帳バックアップ_${todayStr()}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  toast('バックアップファイルを保存したで');
+}
+function restoreFromFile(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const data=JSON.parse(reader.result);
+      if(!Array.isArray(data.products) || !Array.isArray(data.reports)){
+        toast('このファイルはロス帳のバックアップやなさそうやで'); e.target.value=''; return;
+      }
+      const when = data.exportedAt ? data.exportedAt.slice(0,10) : '日付不明';
+      if(!confirm(`このバックアップ（${when}時点）で今のデータを上書きする？元に戻せへんで。`)){ e.target.value=''; return; }
+      products=data.products; saveProducts(products);
+      reports=data.reports; saveReports(reports);
+      if(typeof data.staffName==='string'){ saveStaffName(data.staffName); }
+      toast(`${when}時点のバックアップを復元したで`);
+      renderSettings(); renderHistory(); renderProductChips();
+    }catch(err){ toast('ファイルの読み込みに失敗したで。JSON形式か確認してな'); }
+    e.target.value='';
+  };
+  reader.readAsText(file);
+}
+function resetAll(){
+  if(!confirm('本当に全データを削除する？元に戻せへんで。')) return;
+  if(!confirm('もう一度確認：商品マスタ・報告履歴・写真がすべて消えるで。ええか？')) return;
+  localStorage.removeItem(LS_PRODUCTS);
+  localStorage.removeItem(LS_REPORTS);
+  products=defaultProducts(); saveProducts(products);
+  reports=[]; saveReports(reports);
+  toast('全データを削除したで');
+  renderSettings(); renderHistory();
+}
+
+/* ---------- ユーティリティ ---------- */
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function updateOnlineBadge(){
+  const b=document.getElementById('offlineBadge');
+  if(navigator.onLine){ b.textContent='オンライン'; b.className='on'; }
+  else{ b.textContent='オフライン（データは端末内に保存中）'; b.className='off'; }
+}
+window.addEventListener('online', updateOnlineBadge);
+window.addEventListener('offline', updateOnlineBadge);
+updateOnlineBadge();
+document.getElementById('staffName').addEventListener('input', e=>{ saveStaffName(e.target.value); });
+document.getElementById('repStaff').value = loadStaffName();
+
+/* 初期表示 */
+showScreen('screen-report');
+refreshBadges();
+</script>
+</body>
+</html>
