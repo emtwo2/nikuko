@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>業務台帳</title>
+<style>
+  :root{ --paper:#EFEDE7; --card:#FBFAF7; --ink:#211F1C; --ink-soft:#6b665c; --line:#CBC6BA; --stamp:#4B2E58; --alert:#AA3A2E; }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; min-height:100vh; background:var(--paper); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",system-ui,sans-serif;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px;
+  }
+  h1{ font-size:20px; margin:0 0 6px; }
+  .sub{ font-size:12.5px; color:var(--ink-soft); margin-bottom:28px; }
+  .cards{ display:flex; flex-direction:column; gap:14px; width:100%; max-width:360px; }
+  a.card{
+    display:block; text-decoration:none; color:var(--ink);
+    background:var(--card); border:1.6px solid var(--line); border-radius:16px;
+    padding:20px; text-align:left;
+  }
+  a.card .icon{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:36px; height:36px; border-radius:50%; font-weight:800; font-size:15px;
+    margin-bottom:10px;
+  }
+  a.card.a .icon{ border:1.6px solid var(--stamp); color:var(--stamp); }
+  a.card.b .icon{ border:1.6px solid var(--alert); color:var(--alert); }
+  a.card .t{ font-size:17px; font-weight:800; }
+  a.card .d{ font-size:12.5px; color:var(--ink-soft); margin-top:4px; }
+</style>
+</head>
+<body>
+  <h1>業務台帳</h1>
+  <div class="sub">使う方をタップしてな</div>
+  <div class="cards">
+    <a class="card a" href="./nikukocho.html">
+      <span class="icon">肉</span>
+      <div class="t">肉庫帳</div>
+      <div class="d">精肉 在庫台帳</div>
+    </a>
+    <a class="card b" href="./rosucho.html">
+      <span class="icon">損</span>
+      <div class="t">ロス帳</div>
+      <div class="d">ロス・廃棄報告</div>
+    </a>
+  </div>
+</body>
+</html>
