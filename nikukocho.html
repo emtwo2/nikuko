@@ -228,6 +228,7 @@
 </head>
 <body>
 
+<div id="dbg" style="position:fixed;top:0;left:0;right:0;z-index:9999;background:#000;color:#0f0;font-size:11px;padding:4px;font-family:monospace;"></div>
 <script>
 window.onerror=function(m,s,l,c){document.getElementById('dbg').textContent='エラー: '+m+' (行'+l+')';return false;};
 document.addEventListener('click',function(e){
@@ -239,6 +240,7 @@ document.addEventListener('click',function(e){
   }
 },true);
 </script>
+
   
 <header class="app">
   <div class="brand">
