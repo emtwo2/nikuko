@@ -228,9 +228,16 @@
 </head>
 <body>
 
-<div id="dbg" style="position:fixed;top:0;left:0;right:0;z-index:9999;background:#000;color:#0f0;font-size:11px;padding:4px;font-family:monospace;"></div>
 <script>
-document.addEventListener('click',function(e){document.getElementById('dbg').textContent='最後にタップされた要素: '+(e.target.tagName)+' / class='+(e.target.className||'なし');},true);
+window.onerror=function(m,s,l,c){document.getElementById('dbg').textContent='エラー: '+m+' (行'+l+')';return false;};
+document.addEventListener('click',function(e){
+  if(e.target.className==='chip'||e.target.className==='chip selected'){
+    setTimeout(function(){
+      var sel=document.querySelectorAll('#inItemChips .chip.selected').length;
+      document.getElementById('dbg').textContent='タップ後、選択中のチップ数='+sel;
+    },50);
+  }
+},true);
 </script>
   
 <header class="app">
