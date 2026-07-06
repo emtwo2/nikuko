@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="加工帳">
+<meta name="mobile-web-app-capable" content="yes">
+<title>加工帳 - 加工品在庫管理</title>
+<style>
+  :root{
+    --paper:#EFEDE7; --paper2:#E6E2D8; --card:#FBFAF7;
+    --ink:#211F1C; --ink-soft:#6b665c; --line:#CBC6BA;
+    --stamp:#2E5844; --stamp-soft:#E4EEE6; --stamp-deep:#1F3F30;
+    --alert:#AA3A2E; --alert-soft:#F6E1DD;
+    --good:#3F6B4A; --good-soft:#E4EEE6;
+    --raw:#4B2E58; --raw-soft:#EDE6F0;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; overflow-x:hidden; width:100%;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased; padding-bottom:env(safe-area-inset-bottom);
+    overscroll-behavior:none;
+  }
+  .num{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; font-variant-numeric:tabular-nums;}
+
+  header.app{
+    padding:calc(env(safe-area-inset-top) + 14px) 20px 14px;
+    background:var(--paper); border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:10;
+    display:flex; align-items:baseline; justify-content:space-between;
+  }
+  header.app .brand{display:flex; align-items:baseline; gap:10px;}
+  header.app h1{ font-size:22px; margin:0; font-weight:800; letter-spacing:.02em; }
+  header.app .stamp-mark{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:22px; height:22px; border-radius:50%;
+    border:1.6px solid var(--stamp); color:var(--stamp);
+    font-size:11px; font-weight:800; transform:rotate(-8deg);
+  }
+  header.app .sub{font-size:11px; color:var(--ink-soft);}
+  #offlineBadge{
+    font-size:10.5px; padding:3px 9px; border-radius:20px; font-weight:700;
+    border:1px solid var(--line); color:var(--ink-soft); background:var(--card);
+  }
+  #offlineBadge.off{ color:var(--alert); border-color:var(--alert); background:var(--alert-soft); }
+  #offlineBadge.on{ color:var(--good); border-color:var(--good); background:var(--good-soft); }
+
+  main{ padding:16px 16px 100px; max-width:640px; margin:0 auto; }
+  .screen{ display:none; animation:fade .18s ease; }
+  .screen.active{ display:block; }
+  @keyframes fade{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;} }
+
+  .section-title{
+    font-size:12px; font-weight:800; letter-spacing:.12em; color:var(--stamp);
+    text-transform:uppercase; margin:22px 0 10px;
+  }
+  .section-title:first-child{ margin-top:2px; }
+
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px; margin-bottom:12px; overflow:hidden;
+  }
+
+  label.field{ display:block; margin-bottom:14px; }
+  label.field .lbl{ display:block; font-size:12.5px; color:var(--ink-soft); margin-bottom:6px; font-weight:600; }
+  select,input[type=text],input[type=number],input[type=date],input[type=month],textarea{
+    width:100%; font-size:17px; padding:12px 12px; border-radius:10px;
+    border:1.4px solid var(--line); background:#fff; color:var(--ink); font-family:inherit;
+  }
+  input[type=date],input[type=month]{ -webkit-appearance:none; appearance:none; max-width:100%; min-width:0; }
+  select:focus,input:focus,textarea:focus{ outline:2.5px solid var(--stamp); outline-offset:1px; border-color:var(--stamp); }
+  input[type=number]{ font-family:ui-monospace,"SF Mono",monospace; font-weight:700; }
+
+  .chipwrap{ display:flex; flex-wrap:wrap; gap:8px; }
+  .chip{
+    padding:11px 16px; border-radius:20px; border:1.6px solid var(--line);
+    background:#fff; font-size:15px; font-weight:600; color:var(--ink);
+  }
+  .chip.selected{ background:var(--stamp); border-color:var(--stamp); color:#fff; }
+  .chip.rawstyle.selected{ background:var(--raw); border-color:var(--raw); }
+
+  .btn{
+    width:100%; padding:15px; border-radius:12px; border:none; font-size:16.5px;
+    font-weight:800; letter-spacing:.02em; color:#fff; background:var(--stamp);
+  }
+  .btn:active{ background:var(--stamp-deep); }
+  .btn.ghost{ background:transparent; color:var(--stamp); border:1.6px solid var(--stamp); font-weight:700; }
+  .btn.alert{ background:var(--alert); }
+  .btn.alert.ghost{ background:transparent; color:var(--alert); border-color:var(--alert); }
+  .btn.small{ width:auto; padding:9px 14px; font-size:13.5px; border-radius:9px; }
+  .btn:disabled{ background:var(--line); color:#8a8578; }
+
+  .outrow{ display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+  .outrow select{ flex:1.4; }
+  .outrow input{ flex:1; }
+  .outrow .rm{
+    flex:none; width:40px; height:40px; border-radius:9px;
+    border:1.4px solid var(--line); background:#fff; color:var(--alert);
+    font-size:19px; font-weight:800; line-height:1;
+  }
+  .yieldbar{
+    display:flex; justify-content:space-between; align-items:baseline;
+    background:var(--stamp-soft); border-radius:10px; padding:10px 14px; margin-top:4px;
+  }
+  .yieldbar .l{ font-size:12.5px; color:var(--stamp-deep); font-weight:700; }
+  .yieldbar .v{ font-size:19px; font-weight:800; color:var(--stamp-deep); }
+
+  .stocklist{ display:flex; flex-direction:column; gap:10px; }
+  .stockrow{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px;
+  }
+  .stockrow.low{ border-color:var(--alert); background:var(--alert-soft); }
+  .stockrow .name{ font-weight:800; font-size:16px; }
+  .stockrow .meta{ font-size:12px; color:var(--ink-soft); margin-top:3px; }
+  .stockrow .qty{ text-align:right; }
+  .stockrow .qty .n{ font-size:19px; font-weight:800; }
+  .stockrow .qty .u{ font-size:12px; color:var(--ink-soft); }
+  .taglow{
+    display:inline-block; font-size:10.5px; font-weight:800; color:var(--alert);
+    border:1px solid var(--alert); border-radius:20px; padding:2px 8px; margin-top:4px;
+  }
+  .tagkind{
+    display:inline-block; font-size:10px; font-weight:800; border-radius:20px; padding:2px 8px; margin-left:6px;
+  }
+  .tagkind.raw{ color:var(--raw); border:1px solid var(--raw); background:var(--raw-soft); }
+  .tagkind.proc{ color:var(--stamp); border:1px solid var(--stamp); background:var(--stamp-soft); }
+
+  .summarybar{
+    display:flex; justify-content:space-between; align-items:center;
+    background:var(--stamp-soft); border:1px solid var(--stamp); border-radius:var(--radius);
+    padding:14px 16px; margin-bottom:14px;
+  }
+  .summarybar .v{ font-size:22px; font-weight:800; color:var(--stamp-deep); }
+  .summarybar .l{ font-size:11.5px; color:var(--stamp-deep); font-weight:700; }
+
+  .logitem{ display:flex; gap:12px; padding:12px 4px; border-bottom:1px solid var(--line); }
+  .logitem:last-child{ border-bottom:none; }
+  .stampbadge{
+    flex:none; width:44px; height:44px; border-radius:50%;
+    border:1.8px solid var(--stamp); color:var(--stamp);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-size:9.5px; font-weight:800; transform:rotate(-6deg); line-height:1.1;
+    background:var(--stamp-soft);
+  }
+  .logitem.ship .stampbadge{ border-color:var(--alert); color:var(--alert); background:var(--alert-soft); transform:rotate(5deg); }
+  .logitem .body{ flex:1; min-width:0; }
+  .logitem .t1{ font-weight:700; font-size:15px; }
+  .logitem .t2{ font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
+  .logitem .t3{ font-size:13.5px; margin-top:4px; line-height:1.5; }
+  .logitem .del{ flex:none; background:none; border:none; color:var(--ink-soft); font-size:12px; padding:6px; }
+
+  .itemrow{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:8px;
+  }
+  .itemrow button{ background:none; border:none; color:var(--stamp); font-size:13px; font-weight:700; padding:6px 8px; }
+  .itemrow button.del{ color:var(--alert); }
+
+  .empty{ text-align:center; color:var(--ink-soft); font-size:13.5px; padding:30px 10px; }
+
+  table.report{ width:100%; border-collapse:collapse; font-size:12px; }
+  table.report th, table.report td{
+    border-bottom:1px solid var(--line); padding:8px 4px; text-align:right; white-space:nowrap;
+  }
+  table.report th{ font-size:10.5px; color:var(--ink-soft); font-weight:700; }
+  table.report th:first-child, table.report td:first-child{ text-align:left; }
+  table.report td:first-child{ font-weight:700; }
+  .tablewrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+
+  nav.tabbar{
+    position:fixed; bottom:0; left:0; right:0; z-index:20;
+    background:var(--card); border-top:1px solid var(--line);
+    padding:8px 6px calc(env(safe-area-inset-bottom) + 6px);
+    display:flex; justify-content:space-around;
+  }
+  nav.tabbar button{
+    background:none; border:none; flex:1; padding:6px 2px; position:relative;
+    font-size:12px; font-weight:700; color:var(--ink-soft);
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+  }
+  nav.tabbar button .dot{ width:6px; height:6px; border-radius:50%; background:transparent; }
+  nav.tabbar button.active{ color:var(--stamp); }
+  nav.tabbar button.active .dot{ background:var(--stamp); }
+
+  .toast{
+    position:fixed; left:50%; bottom:90px; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:#fff; padding:12px 20px; border-radius:30px;
+    font-size:14px; font-weight:600; opacity:0; pointer-events:none; z-index:50;
+    transition:all .25s ease; max-width:85%; text-align:center;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  textarea.exportbox{
+    width:100%; height:160px; font-family:ui-monospace,"SF Mono",monospace; font-size:11.5px;
+    background:#fff; border:1.4px solid var(--line); border-radius:10px; padding:10px; resize:vertical;
+  }
+  .hint{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; }
+  .divider{ height:1px; background:var(--line); margin:18px 0; }
+</style>
+</head>
+<body>
+
+<header class="app">
+  <div class="brand">
+    <span class="stamp-mark">加</span>
+    <div>
+      <h1>加工帳</h1>
+      <div class="sub">加工品 在庫台帳 ・ <span id="appVersion" class="num"></span></div>
+    </div>
+  </div>
+  <span id="offlineBadge">-</span>
+</header>
+
+<main>
+
+  <!-- バッチ入力 -->
+  <section class="screen" id="screen-batch">
+    <div class="section-title">加工バッチを記録</div>
+    <div class="card">
+      <label class="field">
+        <span class="lbl">投入する原体</span>
+        <div class="chipwrap" id="rawChips"></div>
+      </label>
+      <label class="field">
+        <span class="lbl">投入重量 (kg)　※実測値</span>
+        <input type="number" inputmode="decimal" id="inputQty" placeholder="0" oninput="updateYieldPreview()">
+      </label>
+
+      <label class="field">
+        <span class="lbl">出来高（できた商品を行ごとに）</span>
+        <div id="outputRows"></div>
+        <button type="button" class="btn ghost small" onclick="addOutputRow()">＋ 商品を追加</button>
+        <div class="yieldbar">
+          <span class="l">出来高合計 / 歩留まり</span>
+          <span class="v num"><span id="outputTotal">0</span>kg / <span id="yieldPreview">-</span></span>
+        </div>
+      </label>
+
+      <label class="field">
+        <span class="lbl">担当者</span>
+        <input type="text" id="batchStaff" placeholder="例）田中">
+      </label>
+      <label class="field">
+        <span class="lbl">日付</span>
+        <input type="date" id="batchDate">
+      </label>
+      <button class="btn" onclick="submitBatch()">バッチを記録する</button>
+    </div>
+  </section>
+
+  <!-- 出荷 -->
+  <section class="screen" id="screen-ship">
+    <div class="section-title">加工品の出荷を記録</div>
+    <div class="card">
+      <label class="field">
+        <span class="lbl">品目（加工品）</span>
+        <div class="chipwrap" id="shipChips"></div>
+      </label>
+      <label class="field">
+        <span class="lbl">数量 (kg)　（現在庫: <span id="shipCurrentQty" class="num">-</span>）</span>
+        <input type="number" inputmode="decimal" id="shipQty" placeholder="0">
+      </label>
+      <label class="field">
+        <span class="lbl">出荷先（任意）</span>
+        <input type="text" id="shipDest" placeholder="例）〇〇店">
+      </label>
+      <label class="field">
+        <span class="lbl">日付</span>
+        <input type="date" id="shipDate">
+      </label>
+      <button class="btn alert" onclick="submitShip()">出荷を記録する</button>
+    </div>
+  </section>
+
+  <!-- 在庫 -->
+  <section class="screen" id="screen-stock">
+    <div class="section-title">加工品の現在庫</div>
+    <div class="summarybar">
+      <div><div class="v num" id="totalStock">0kg</div><div class="l">加工品在庫合計</div></div>
+      <div style="text-align:right"><div class="v num" id="batchCount">0</div><div class="l">累計バッチ数</div></div>
+    </div>
+    <div class="stocklist" id="stockList"></div>
+    <div class="section-title">品目別 平均歩留まり</div>
+    <div class="card" id="yieldStats"></div>
+  </section>
+
+  <!-- 履歴 -->
+  <section class="screen" id="screen-history">
+    <div class="section-title">記録履歴</div>
+    <div class="card" style="padding:6px 14px;">
+      <div id="historyList"></div>
+    </div>
+  </section>
+
+  <!-- 月次表 -->
+  <section class="screen" id="screen-report">
+    <div class="section-title">月次出入表（加工品）</div>
+    <div class="card">
+      <label class="field">
+        <span class="lbl">対象月</span>
+        <input type="month" id="reportMonth" onchange="renderReport()">
+      </label>
+      <div class="tablewrap">
+        <table class="report" id="reportTable"></table>
+      </div>
+      <div style="height:12px"></div>
+      <button class="btn ghost" onclick="downloadCsv()">CSVをダウンロード</button>
+    </div>
+    <div class="section-title">ロス帳のデータを取り込む</div>
+    <div class="card">
+      <p class="hint">ロス帳の「未同期の報告をコピー」で出したJSONを下に貼り付けて取り込むと、ロス分が在庫と月次表に反映されるで。同じ内容は二重取り込みされへんから、何回貼っても大丈夫や。</p>
+      <div style="height:8px"></div>
+      <textarea class="exportbox" id="lossImportBox" placeholder='{"エクスポート日時":..., "報告":[...]}'></textarea>
+      <div style="height:10px"></div>
+      <button class="btn" onclick="importLoss()">ロスJSONを取り込む</button>
+      <p class="hint" style="margin-top:10px;">取込済みロス: <span class="num" id="lossCount">0</span>件</p>
+    </div>
+  </section>
+
+  <!-- 設定 -->
+  <section class="screen" id="screen-settings">
+    <div class="section-title">この端末の担当者</div>
+    <div class="card">
+      <label class="field">
+        <span class="lbl">担当者名</span>
+        <input type="text" id="staffName" placeholder="例）田中">
+      </label>
+    </div>
+
+    <div class="section-title">品目マスタ（原体・加工品）</div>
+    <div class="card">
+      <p class="hint">「肉庫帳から取り込む」を押すと、同じ端末の肉庫帳に登録されてる品目を原体として取り込めるで（IDも共通になる）。</p>
+      <div style="height:8px"></div>
+      <button class="btn ghost" onclick="importFromNikuko()">肉庫帳から原体を取り込む</button>
+      <div class="divider"></div>
+      <div id="itemMasterList"></div>
+      <div class="divider"></div>
+      <label class="field">
+        <span class="lbl">品目名</span>
+        <input type="text" id="newItemName" placeholder="例）タン塩">
+      </label>
+      <label class="field">
+        <span class="lbl">区分</span>
+        <div class="chipwrap" id="newItemKindChips">
+          <button type="button" class="chip selected" data-kind="proc">加工品</button>
+          <button type="button" class="chip rawstyle" data-kind="raw">原体</button>
+        </div>
+      </label>
+      <button class="btn ghost" onclick="addItem()">品目を追加</button>
+    </div>
+
+    <div class="section-title">エクスポート（共通JSON）</div>
+    <div class="card">
+      <p class="hint">未同期のバッチ・出荷記録をコピーするで。肉庫帳側で「加工投入分の差引」に使う形式や。</p>
+      <p style="margin:10px 0 14px;"><span class="num" id="unsyncedCount" style="font-weight:800; font-size:18px;">0</span> 件の未同期記録があります</p>
+      <button class="btn" onclick="doExport()">未同期の記録をコピー</button>
+      <div style="height:10px"></div>
+      <textarea class="exportbox" id="exportBox" readonly></textarea>
+      <div style="height:10px"></div>
+      <button class="btn ghost" id="markSyncedBtn" onclick="markSynced()" disabled>↑ コピーした内容を同期済みにする</button>
+    </div>
+
+    <div class="section-title">バックアップ・復元</div>
+    <div class="card">
+      <button class="btn" onclick="downloadBackup()">全データをバックアップ（ファイル保存）</button>
+      <div class="divider"></div>
+      <input type="file" id="restoreFileInput" accept="application/json" style="display:none;" onchange="restoreFromFile(event)">
+      <button class="btn ghost" onclick="document.getElementById('restoreFileInput').click()">バックアップから復元する</button>
+    </div>
+
+    <div class="section-title">データ管理</div>
+    <div class="card">
+      <button class="btn alert" onclick="resetAll()">全データを削除する</button>
+    </div>
+
+    <div class="section-title">バージョン情報</div>
+    <div class="card">
+      <p class="hint"><span class="num" id="appVersionFull" style="font-weight:800; font-size:15px; color:var(--ink);"></span></p>
+      <p class="hint" style="margin-top:6px;" id="appVersionNote"></p>
+    </div>
+  </section>
+
+</main>
+
+<nav class="tabbar">
+  <button data-screen="screen-batch"><span class="dot"></span>加工</button>
+  <button data-screen="screen-ship"><span class="dot"></span>出荷</button>
+  <button data-screen="screen-stock"><span class="dot"></span>在庫</button>
+  <button data-screen="screen-report"><span class="dot"></span>月次</button>
+  <button data-screen="screen-settings"><span class="dot"></span>設定</button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- バージョン情報 ---------- */
+const APP_VERSION = 'v1';
+const APP_VERSION_DATE = '2026-07-06';
+const APP_VERSION_NOTE = '初版。バッチ入力（投入原体＋複数出来高）・加工品在庫・歩留まり自動蓄積・月次出入表（ロス帳JSON取込＋CSV）・肉庫帳から品目取込。';
+document.getElementById('appVersion').textContent = APP_VERSION;
+document.getElementById('appVersionFull').textContent = `${APP_VERSION}（${APP_VERSION_DATE}）`;
+document.getElementById('appVersionNote').textContent = APP_VERSION_NOTE;
+
+/* ---------- データ層 (localStorage) ---------- */
+const LS_ITEMS='kakocho_items', LS_BATCHES='kakocho_batches', LS_SHIPS='kakocho_ships',
+      LS_LOSSES='kakocho_losses', LS_STAFFNAME='kakocho_staffname';
+
+function loadJson(k, fb){ try{ return JSON.parse(localStorage.getItem(k)) ?? fb; }catch(e){ return fb; } }
+function saveJson(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function r1(n){ return Math.round(n*10)/10; }
+function r3(n){ return Math.round(n*1000)/1000; }
+
+/* items: {id, name, unit:'kg', kind:'raw'|'proc'} */
+let items = loadJson(LS_ITEMS, null) || [
+  {id: uid(), name:'タン塩', unit:'kg', kind:'proc'},
+  {id: uid(), name:'タン下', unit:'kg', kind:'proc'},
+];
+if(!localStorage.getItem(LS_ITEMS)) saveJson(LS_ITEMS, items);
+/* batches: {id, inputItemId, inputQty, outputs:[{itemId, qty}], yield, staff, date, ts, synced} */
+let batches = loadJson(LS_BATCHES, []);
+/* ships: {id, itemId, qty, dest, date, ts, synced} */
+let ships = loadJson(LS_SHIPS, []);
+/* losses(取込): {key, itemId, itemName, qty, reason, date} */
+let losses = loadJson(LS_LOSSES, []);
+
+function saveItems(){ saveJson(LS_ITEMS, items); }
+function saveBatches(){ saveJson(LS_BATCHES, batches); }
+function saveShips(){ saveJson(LS_SHIPS, ships); }
+function saveLosses(){ saveJson(LS_LOSSES, losses); }
+function loadStaffName(){ return localStorage.getItem(LS_STAFFNAME) || ''; }
+function saveStaffName(v){ localStorage.setItem(LS_STAFFNAME, v); }
+
+let selectedRaw = null;
+let selectedShipItem = null;
+let newItemKind = 'proc';
+/* outputs入力行: [{itemId, qty}] */
+let outputRows = [{itemId:'', qty:''}];
+
+const rawItems = ()=> items.filter(i=>i.kind==='raw');
+const procItems = ()=> items.filter(i=>i.kind!=='raw');
+
+/* ---------- 在庫計算 ---------- */
+function stockFor(itemId, until){ /* until: 'YYYY-MM-DD'含む末日 or undefined=全部 */
+  let q=0;
+  batches.forEach(b=>{
+    if(until && b.date>until) return;
+    (b.outputs||[]).forEach(o=>{ if(o.itemId===itemId) q+=o.qty; });
+  });
+  ships.forEach(s=>{ if(s.itemId===itemId && (!until || s.date<=until)) q-=s.qty; });
+  losses.forEach(l=>{ if(l.itemId===itemId && (!until || l.date<=until)) q-=l.qty; });
+  return r3(q);
+}
+function movedInMonth(itemId, ym){ /* ym: 'YYYY-MM' */
+  let out=0, ship=0, loss=0;
+  batches.forEach(b=>{ if(b.date.startsWith(ym)) (b.outputs||[]).forEach(o=>{ if(o.itemId===itemId) out+=o.qty; }); });
+  ships.forEach(s=>{ if(s.itemId===itemId && s.date.startsWith(ym)) ship+=s.qty; });
+  losses.forEach(l=>{ if(l.itemId===itemId && l.date.startsWith(ym)) loss+=l.qty; });
+  return {out:r3(out), ship:r3(ship), loss:r3(loss)};
+}
+
+/* ---------- 画面切替 ---------- */
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('nav.tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.screen===id));
+  if(id==='screen-batch'){ renderRawChips(); renderOutputRows(); }
+  if(id==='screen-ship') renderShipChips();
+  if(id==='screen-stock') renderStock();
+  if(id==='screen-history') renderHistory();
+  if(id==='screen-report') renderReport();
+  if(id==='screen-settings') renderSettings();
+}
+document.querySelectorAll('nav.tabbar button').forEach(b=>{
+  b.addEventListener('click', ()=> showScreen(b.dataset.screen));
+});
+
+let toastTimer=null;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'), 2000);
+}
+
+/* ---------- バッチ入力 ---------- */
+function renderRawChips(){
+  const wrap=document.getElementById('rawChips'); wrap.innerHTML='';
+  const raws=rawItems();
+  if(raws.length===0){ wrap.innerHTML='<span class="hint">原体が未登録や。「設定」で肉庫帳から取り込むか、区分「原体」で追加してな</span>'; return; }
+  if(!raws.find(i=>i.id===selectedRaw)) selectedRaw=raws[0].id;
+  raws.forEach(it=>{
+    const b=document.createElement('button');
+    b.type='button'; b.className='chip rawstyle'+(it.id===selectedRaw?' selected':'');
+    b.textContent=it.name;
+    b.onclick=()=>{ selectedRaw=it.id; renderRawChips(); };
+    wrap.appendChild(b);
+  });
+}
+function renderOutputRows(){
+  const wrap=document.getElementById('outputRows'); wrap.innerHTML='';
+  const procs=procItems();
+  outputRows.forEach((row, idx)=>{
+    const div=document.createElement('div'); div.className='outrow';
+    const sel=document.createElement('select');
+    const ph=document.createElement('option'); ph.value=''; ph.textContent='商品を選択'; sel.appendChild(ph);
+    procs.forEach(p=>{
+      const o=document.createElement('option'); o.value=p.id; o.textContent=p.name;
+      if(row.itemId===p.id) o.selected=true;
+      sel.appendChild(o);
+    });
+    sel.onchange=e=>{ outputRows[idx].itemId=e.target.value; };
+    div.appendChild(sel);
+    const inp=document.createElement('input');
+    inp.type='number'; inp.inputMode='decimal'; inp.placeholder='kg'; inp.value=row.qty;
+    inp.addEventListener('input', e=>{ outputRows[idx].qty=e.target.value; updateYieldPreview(); });
+    div.appendChild(inp);
+    if(outputRows.length>1){
+      const rm=document.createElement('button');
+      rm.type='button'; rm.className='rm'; rm.textContent='×';
+      rm.onclick=()=>{ outputRows.splice(idx,1); renderOutputRows(); updateYieldPreview(); };
+      div.appendChild(rm);
+    }
+    wrap.appendChild(div);
+  });
+}
+function addOutputRow(){ outputRows.push({itemId:'', qty:''}); renderOutputRows(); }
+function updateYieldPreview(){
+  const total = outputRows.reduce((s,r)=> s+(parseFloat(r.qty)||0), 0);
+  document.getElementById('outputTotal').textContent = r3(total);
+  const input = parseFloat(document.getElementById('inputQty').value);
+  document.getElementById('yieldPreview').textContent = (input>0 && total>0) ? Math.round(total/input*1000)/10+'%' : '-';
+}
+document.getElementById('batchDate').value = todayStr();
+
+function submitBatch(){
+  const raws=rawItems();
+  if(!selectedRaw || !raws.find(i=>i.id===selectedRaw)){ toast('投入する原体を選んでな'); return; }
+  const inputQty=parseFloat(document.getElementById('inputQty').value);
+  if(!inputQty || inputQty<=0){ toast('投入重量を入力してな'); return; }
+  const outs = outputRows
+    .map(r=>({itemId:r.itemId, qty:parseFloat(r.qty)}))
+    .filter(r=>r.itemId && r.qty>0);
+  if(outs.length===0){ toast('出来高を1行以上入力してな'); return; }
+  const totalOut = outs.reduce((s,o)=>s+o.qty,0);
+  if(totalOut > inputQty){
+    if(!confirm(`出来高合計(${r3(totalOut)}kg)が投入(${inputQty}kg)を超えてるで。歩留まり100%超になるけど記録してええか？`)) return;
+  }
+  const staff=document.getElementById('batchStaff').value.trim() || loadStaffName();
+  const date=document.getElementById('batchDate').value || todayStr();
+  const yieldRate = r3(totalOut/inputQty);
+  batches.push({id:uid(), inputItemId:selectedRaw, inputQty, outputs:outs, yield:yieldRate, staff, date, ts:Date.now(), synced:false});
+  saveBatches();
+  outputRows=[{itemId:'', qty:''}];
+  document.getElementById('inputQty').value='';
+  renderOutputRows(); updateYieldPreview();
+  const rawName = items.find(i=>i.id===selectedRaw)?.name||'';
+  toast(`${rawName} ${inputQty}kg → ${r3(totalOut)}kg（歩留まり${Math.round(yieldRate*1000)/10}%）を記録したで`);
+}
+
+/* ---------- 出荷 ---------- */
+function renderShipChips(){
+  const wrap=document.getElementById('shipChips'); wrap.innerHTML='';
+  const procs=procItems();
+  if(procs.length===0){ wrap.innerHTML='<span class="hint">加工品が未登録や。「設定」から追加してな</span>'; return; }
+  if(!procs.find(i=>i.id===selectedShipItem)) selectedShipItem=procs[0].id;
+  procs.forEach(it=>{
+    const b=document.createElement('button');
+    b.type='button'; b.className='chip'+(it.id===selectedShipItem?' selected':'');
+    b.textContent=it.name;
+    b.onclick=()=>{ selectedShipItem=it.id; renderShipChips(); };
+    wrap.appendChild(b);
+  });
+  document.getElementById('shipCurrentQty').textContent = selectedShipItem ? stockFor(selectedShipItem)+'kg' : '-';
+}
+document.getElementById('shipDate').value = todayStr();
+function submitShip(){
+  if(!selectedShipItem){ toast('品目を選んでな'); return; }
+  const qty=parseFloat(document.getElementById('shipQty').value);
+  if(!qty || qty<=0){ toast('数量を入力してな'); return; }
+  const dest=document.getElementById('shipDest').value.trim();
+  const date=document.getElementById('shipDate').value || todayStr();
+  ships.push({id:uid(), itemId:selectedShipItem, qty, dest, date, ts:Date.now(), synced:false});
+  saveShips();
+  document.getElementById('shipQty').value='';
+  const nm=items.find(i=>i.id===selectedShipItem)?.name||'';
+  toast(`${nm} ${qty}kg の出荷を記録したで`);
+  renderShipChips();
+}
+
+/* ---------- 在庫・歩留まり ---------- */
+function renderStock(){
+  const list=document.getElementById('stockList'); list.innerHTML='';
+  let total=0;
+  const procs=procItems();
+  if(procs.length===0){ list.innerHTML='<div class="empty">加工品が未登録やで</div>'; }
+  procs.forEach(it=>{
+    const q=stockFor(it.id);
+    total+=q;
+    const row=document.createElement('div');
+    row.className='stockrow'+(q<0?' low':'');
+    row.innerHTML=`
+      <div>
+        <div class="name">${esc(it.name)}</div>
+        ${q<0?'<span class="taglow">マイナス在庫（記録もれの可能性）</span>':''}
+      </div>
+      <div class="qty"><div class="n num">${q}</div><div class="u">kg</div></div>`;
+    list.appendChild(row);
+  });
+  document.getElementById('totalStock').textContent = r3(total)+'kg';
+  document.getElementById('batchCount').textContent = batches.length;
+
+  /* 歩留まり統計 */
+  const yw=document.getElementById('yieldStats');
+  const byRaw={};
+  batches.forEach(b=>{
+    if(!byRaw[b.inputItemId]) byRaw[b.inputItemId]=[];
+    byRaw[b.inputItemId].push(b.yield);
+  });
+  const keys=Object.keys(byRaw);
+  if(keys.length===0){ yw.innerHTML='<div class="empty">バッチ記録が貯まると、品目別の平均歩留まりがここに出るで</div>'; return; }
+  yw.innerHTML = keys.map(k=>{
+    const ys=byRaw[k];
+    const avg=ys.reduce((a,b)=>a+b,0)/ys.length;
+    const min=Math.min(...ys), max=Math.max(...ys);
+    const nm=items.find(i=>i.id===k)?.name||'(削除済み)';
+    return `<div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px dashed var(--line);">
+      <span style="font-weight:700;">${esc(nm)}</span>
+      <span class="num">${Math.round(avg*1000)/10}%（${Math.round(min*1000)/10}〜${Math.round(max*1000)/10}% / ${ys.length}回）</span>
+    </div>`;
+  }).join('');
+}
+
+/* ---------- 履歴 ---------- */
+function renderHistory(){
+  const wrap=document.getElementById('historyList');
+  const all=[
+    ...batches.map(b=>({...b, _t:'batch'})),
+    ...ships.map(s=>({...s, _t:'ship'})),
+  ].sort((a,b)=>b.ts-a.ts);
+  if(all.length===0){ wrap.innerHTML='<div class="empty">まだ記録がないで</div>'; return; }
+  wrap.innerHTML='';
+  all.forEach(x=>{
+    const div=document.createElement('div');
+    if(x._t==='batch'){
+      const rawName=items.find(i=>i.id===x.inputItemId)?.name||'(削除済み)';
+      const outsText=(x.outputs||[]).map(o=>{
+        const nm=items.find(i=>i.id===o.itemId)?.name||'(削除済み)';
+        return `${esc(nm)} ${o.qty}kg`;
+      }).join(' ／ ');
+      div.className='logitem';
+      div.innerHTML=`
+        <div class="stampbadge">加<span class="num" style="font-size:8px;">${x.date.slice(5).replace('-','/')}</span></div>
+        <div class="body">
+          <div class="t1">${esc(rawName)} ${x.inputQty}kg 投入</div>
+          <div class="t2 num">歩留まり ${Math.round(x.yield*1000)/10}% ・ ${esc(x.staff||'担当者未記入')}${x.synced?' ・ 同期済み':''}</div>
+          <div class="t3">→ ${outsText}</div>
+        </div>
+        <button class="del" onclick="deleteBatch('${x.id}')">削除</button>`;
+    } else {
+      const nm=items.find(i=>i.id===x.itemId)?.name||'(削除済み)';
+      div.className='logitem ship';
+      div.innerHTML=`
+        <div class="stampbadge">出<span class="num" style="font-size:8px;">${x.date.slice(5).replace('-','/')}</span></div>
+        <div class="body">
+          <div class="t1">${esc(nm)}</div>
+          <div class="t2">${x.dest?esc(x.dest)+' ・ ':''}${x.synced?'同期済み':''}</div>
+          <div class="t3 num" style="color:var(--alert); font-weight:800;">-${x.qty} kg</div>
+        </div>
+        <button class="del" onclick="deleteShip('${x.id}')">削除</button>`;
+    }
+    wrap.appendChild(div);
+  });
+}
+function deleteBatch(id){
+  if(!confirm('このバッチ記録を削除する？出来高分の在庫も減るで')) return;
+  batches=batches.filter(b=>b.id!==id); saveBatches(); renderHistory();
+}
+function deleteShip(id){
+  if(!confirm('この出荷記録を削除する？')) return;
+  ships=ships.filter(s=>s.id!==id); saveShips(); renderHistory();
+}
+
+/* ---------- 月次出入表 ---------- */
+function prevMonthEnd(ym){ /* 'YYYY-MM' -> 前月末日 'YYYY-MM-DD' */
+  const [y,m]=ym.split('-').map(Number);
+  const d=new Date(y, m-1, 0); /* 前月末 */
+  return d.toISOString().slice(0,10);
+}
+let lastReportRows=[];
+function renderReport(){
+  const ym=document.getElementById('reportMonth').value;
+  const table=document.getElementById('reportTable');
+  if(!ym){ table.innerHTML='<tr><td class="empty">対象月を選んでな</td></tr>'; return; }
+  const pe=prevMonthEnd(ym);
+  const procs=procItems();
+  lastReportRows=[];
+  let html='<tr><th>品目</th><th>前月繰越</th><th>出来高＋</th><th>出荷−</th><th>ロス−</th><th>月末在庫</th></tr>';
+  procs.forEach(it=>{
+    const carry=stockFor(it.id, pe);
+    const mv=movedInMonth(it.id, ym);
+    const end=r3(carry+mv.out-mv.ship-mv.loss);
+    lastReportRows.push({name:it.name, carry, out:mv.out, ship:mv.ship, loss:mv.loss, end});
+    html+=`<tr><td>${esc(it.name)}</td><td class="num">${carry}</td><td class="num">${mv.out}</td><td class="num">${mv.ship}</td><td class="num">${mv.loss}</td><td class="num" style="font-weight:800;">${end}</td></tr>`;
+  });
+  table.innerHTML=html;
+  document.getElementById('lossCount').textContent=losses.length;
+}
+function downloadCsv(){
+  const ym=document.getElementById('reportMonth').value;
+  if(!ym || lastReportRows.length===0){ toast('先に対象月を選んでな'); return; }
+  let csv='\uFEFF品目,前月繰越,出来高,出荷,ロス,月末在庫\n';
+  lastReportRows.forEach(r=>{
+    csv+=`${r.name},${r.carry},${r.out},${r.ship},${r.loss},${r.end}\n`;
+  });
+  const blob=new Blob([csv], {type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`加工品出入表_${ym}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  toast('CSVを保存したで');
+}
+function importLoss(){
+  const text=document.getElementById('lossImportBox').value.trim();
+  if(!text){ toast('JSONを貼り付けてな'); return; }
+  let data;
+  try{ data=JSON.parse(text); }catch(e){ toast('JSONの形式が読めへんかったわ'); return; }
+  const reports = data.報告 || data.records || [];
+  if(!Array.isArray(reports) || reports.length===0){ toast('報告データが見つからへんで'); return; }
+  let added=0, skippedDup=0, skippedUnknown=0, skippedUnit=0;
+  reports.forEach(r=>{
+    const name=r.商品, qty=parseFloat(r.数量), unit=r.単位, date=r.日付, reason=r.理由||'';
+    if(!name || !qty || !date) return;
+    if(unit && unit!=='kg'){ skippedUnit++; return; } /* kg以外は在庫計算に混ぜない */
+    const it=items.find(i=>i.name===name && i.kind!=='raw');
+    if(!it){ skippedUnknown++; return; }
+    const key=`${date}|${name}|${qty}|${reason}`;
+    if(losses.find(l=>l.key===key)){ skippedDup++; return; }
+    losses.push({key, itemId:it.id, itemName:name, qty, reason, date});
+    added++;
+  });
+  saveLosses();
+  document.getElementById('lossImportBox').value='';
+  let msg=`${added}件取り込んだで`;
+  if(skippedDup) msg+=`（重複${skippedDup}件スキップ）`;
+  if(skippedUnknown) msg+=`（品目不一致${skippedUnknown}件）`;
+  if(skippedUnit) msg+=`（kg以外${skippedUnit}件）`;
+  toast(msg);
+  renderReport();
+}
+
+/* ---------- 設定 ---------- */
+document.querySelectorAll('#newItemKindChips .chip').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('#newItemKindChips .chip').forEach(x=>x.classList.remove('selected'));
+    b.classList.add('selected');
+    newItemKind=b.dataset.kind;
+  });
+});
+function renderSettings(){
+  document.getElementById('staffName').value = loadStaffName();
+  const wrap=document.getElementById('itemMasterList'); wrap.innerHTML='';
+  if(items.length===0){ wrap.innerHTML='<div class="empty">品目がまだないで</div>'; }
+  items.forEach(it=>{
+    const row=document.createElement('div'); row.className='itemrow';
+    row.innerHTML=`
+      <div style="font-weight:700;">${esc(it.name)}<span class="tagkind ${it.kind==='raw'?'raw':'proc'}">${it.kind==='raw'?'原体':'加工品'}</span></div>
+      <button class="del" onclick="deleteItem('${it.id}')">削除</button>`;
+    wrap.appendChild(row);
+  });
+  document.getElementById('unsyncedCount').textContent =
+    batches.filter(b=>!b.synced).length + ships.filter(s=>!s.synced).length;
+}
+document.getElementById('staffName').addEventListener('input', e=>{ saveStaffName(e.target.value); });
+function addItem(){
+  const name=document.getElementById('newItemName').value.trim();
+  if(!name){ toast('品目名を入力してな'); return; }
+  if(items.find(i=>i.name===name)){ toast('もう登録されてるで'); return; }
+  items.push({id:uid(), name, unit:'kg', kind:newItemKind});
+  saveItems();
+  document.getElementById('newItemName').value='';
+  toast(`「${name}」を${newItemKind==='raw'?'原体':'加工品'}として登録したで`);
+  renderSettings();
+}
+function deleteItem(id){
+  const used = batches.some(b=> b.inputItemId===id || (b.outputs||[]).some(o=>o.itemId===id)) || ships.some(s=>s.itemId===id);
+  const msg = used ? 'この品目には記録があるで。削除すると履歴上は「削除済み」表示になる。削除する？' : 'この品目を削除する？';
+  if(!confirm(msg)) return;
+  items=items.filter(i=>i.id!==id); saveItems(); renderSettings();
+}
+function importFromNikuko(){
+  let nikukoItems;
+  try{ nikukoItems=JSON.parse(localStorage.getItem('nikukocho_items')); }catch(e){ nikukoItems=null; }
+  if(!Array.isArray(nikukoItems) || nikukoItems.length===0){
+    toast('肉庫帳の品目が見つからへん。同じブラウザで肉庫帳を一度開いてから試してな'); return;
+  }
+  let added=0;
+  nikukoItems.forEach(n=>{
+    if(items.find(i=>i.id===n.id || i.name===n.name)) return;
+    items.push({id:n.id, name:n.name, unit:n.unit||'kg', kind:'raw'});
+    added++;
+  });
+  saveItems();
+  toast(added>0 ? `${added}件の原体を取り込んだで（ID共通）` : '新しく取り込むものはなかったで');
+  renderSettings();
+}
+
+/* ---------- エクスポート（共通JSON） ---------- */
+function doExport(){
+  const ub=batches.filter(b=>!b.synced), us=ships.filter(s=>!s.synced);
+  if(ub.length+us.length===0){ toast('未同期の記録はないで'); return; }
+  const records=[];
+  ub.forEach(b=>{
+    const rawName=items.find(i=>i.id===b.inputItemId)?.name||'(削除済み)';
+    records.push({
+      区分:'加工投入', 品目ID:b.inputItemId, 品目:rawName, 数量:b.inputQty, 単位:'kg', 日付:b.date,
+      出来高:(b.outputs||[]).map(o=>({品目ID:o.itemId, 品目:items.find(i=>i.id===o.itemId)?.name||'(削除済み)', 数量:o.qty})),
+      歩留まり:b.yield, 担当者:b.staff||''
+    });
+  });
+  us.forEach(s=>{
+    records.push({区分:'加工品出荷', 品目ID:s.itemId, 品目:items.find(i=>i.id===s.itemId)?.name||'(削除済み)', 数量:s.qty, 単位:'kg', 日付:s.date, 出荷先:s.dest||''});
+  });
+  const payload={ app:'加工帳', 使用者:loadStaffName()||'(未設定)', エクスポート日時:new Date().toLocaleString('ja-JP'), 記録:records };
+  const text=JSON.stringify(payload, null, 2);
+  const box=document.getElementById('exportBox');
+  box.value=text;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>toast('コピーしたで。肉庫帳の取込やClaudeへの共有に使ってな')).catch(()=>{
+      box.select(); toast('自動コピーできんかった。手動で選択してコピーしてな');
+    });
+  } else { box.select(); toast('このテキストを選択してコピーしてな'); }
+  document.getElementById('markSyncedBtn').disabled=false;
+  window._pend={b:ub.map(x=>x.id), s:us.map(x=>x.id)};
+}
+function markSynced(){
+  if(!window._pend){ toast('先にコピーしてな'); return; }
+  batches=batches.map(b=> window._pend.b.includes(b.id)?{...b, synced:true}:b);
+  ships=ships.map(s=> window._pend.s.includes(s.id)?{...s, synced:true}:s);
+  saveBatches(); saveShips();
+  window._pend=null;
+  document.getElementById('markSyncedBtn').disabled=true;
+  document.getElementById('exportBox').value='';
+  toast('同期済みにしたで');
+  renderSettings();
+}
+
+/* ---------- バックアップ・復元 ---------- */
+function downloadBackup(){
+  const payload={ app:'加工帳', version:1, exportedAt:new Date().toISOString(), items, batches, ships, losses, staffName:loadStaffName() };
+  const text=JSON.stringify(payload, null, 2);
+  const blob=new Blob([text], {type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`加工帳バックアップ_${todayStr()}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  toast('バックアップファイルを保存したで');
+}
+function restoreFromFile(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const data=JSON.parse(reader.result);
+      if(!Array.isArray(data.items) || !Array.isArray(data.batches)){
+        toast('このファイルは加工帳のバックアップやなさそうやで'); e.target.value=''; return;
+      }
+      const when=data.exportedAt ? data.exportedAt.slice(0,10) : '日付不明';
+      if(!confirm(`このバックアップ（${when}時点）で今のデータを上書きする？元に戻せへんで。`)){ e.target.value=''; return; }
+      items=data.items; saveItems();
+      batches=data.batches; saveBatches();
+      ships=Array.isArray(data.ships)?data.ships:[]; saveShips();
+      losses=Array.isArray(data.losses)?data.losses:[]; saveLosses();
+      if(typeof data.staffName==='string') saveStaffName(data.staffName);
+      selectedRaw=null; selectedShipItem=null;
+      toast(`${when}時点のバックアップを復元したで`);
+      renderSettings();
+    }catch(err){ toast('ファイルの読み込みに失敗したで。JSON形式か確認してな'); }
+    e.target.value='';
+  };
+  reader.readAsText(file);
+}
+function resetAll(){
+  if(!confirm('本当に全データを削除する？元に戻せへんで。')) return;
+  if(!confirm('もう一度確認：品目・バッチ・出荷・取込ロスのすべての記録が消えるで。ええか？')) return;
+  [LS_ITEMS, LS_BATCHES, LS_SHIPS, LS_LOSSES].forEach(k=>localStorage.removeItem(k));
+  items=[]; batches=[]; ships=[]; losses=[];
+  saveItems(); saveBatches(); saveShips(); saveLosses();
+  toast('全データを削除したで');
+  renderSettings();
+}
+
+/* ---------- オンライン表示 ---------- */
+function updateOnlineBadge(){
+  const b=document.getElementById('offlineBadge');
+  if(navigator.onLine){ b.textContent='オンライン'; b.className='on'; }
+  else{ b.textContent='オフライン（データは端末内に保存中）'; b.className='off'; }
+}
+window.addEventListener('online', updateOnlineBadge);
+window.addEventListener('offline', updateOnlineBadge);
+updateOnlineBadge();
+
+/* 初期表示 */
+document.getElementById('reportMonth').value = new Date().toISOString().slice(0,7);
+showScreen('screen-batch');
+</script>
+</body>
+</html>
