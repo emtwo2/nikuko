@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="肉庫帳">
 <meta name="mobile-web-app-capable" content="yes">
 <title>肉庫帳 - 精肉在庫管理</title>
-<style>
+<style>z
   :root{
     --paper:#EFEDE7;
     --paper2:#E6E2D8;
@@ -110,7 +110,7 @@
     padding:11px 16px; border-radius:20px; border:1.6px solid var(--line);
     background:#fff; font-size:15px; font-weight:600; color:var(--ink);
   }
-  .chip.selected{ background:var(--stamp); border-color:var(--stamp); color:#fff; }
+  .chip.selected{ background:#4B2E58 !important; border-color:#4B2E58 !important; color:#fff !important; }
 
   .btn{
     width:100%; padding:15px; border-radius:12px; border:none; font-size:16.5px;
@@ -227,19 +227,6 @@
 </style>
 </head>
 <body>
-
-<div id="dbg" style="position:fixed;top:0;left:0;right:0;z-index:9999;background:#000;color:#0f0;font-size:11px;padding:4px;font-family:monospace;"></div>
-<script>
-window.onerror=function(m,s,l,c){document.getElementById('dbg').textContent='エラー: '+m+' (行'+l+')';return false;};
-document.addEventListener('click',function(e){
-  if(e.target.className==='chip'||e.target.className==='chip selected'){
-    setTimeout(function(){
-      var sel=document.querySelectorAll('#inItemChips .chip.selected').length;
-      document.getElementById('dbg').textContent='タップ後、選択中のチップ数='+sel;
-    },50);
-  }
-},true);
-</script>
 
   
 <header class="app">
