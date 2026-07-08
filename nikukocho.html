@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="肉庫帳">
 <meta name="mobile-web-app-capable" content="yes">
 <title>肉庫帳 - 精肉在庫管理</title>
-<style>z
+<style>
   :root{
     --paper:#EFEDE7;
     --paper2:#E6E2D8;
@@ -110,7 +110,7 @@
     padding:11px 16px; border-radius:20px; border:1.6px solid var(--line);
     background:#fff; font-size:15px; font-weight:600; color:var(--ink);
   }
-  .chip.selected{ background:#4B2E58 !important; border-color:#4B2E58 !important; color:#fff !important; }
+  .chip.selected{ background:#4B2E58; border-color:#4B2E58; color:#fff; }
 
   .btn{
     width:100%; padding:15px; border-radius:12px; border:none; font-size:16.5px;
@@ -228,7 +228,6 @@
 </head>
 <body>
 
-  
 <header class="app">
   <div class="brand">
     <span class="stamp-mark">肉</span>
@@ -434,9 +433,9 @@
 <script>
 /* ---------- バージョン情報 ---------- */
 /* 更新するたびにここを書き換える */
-const APP_VERSION = 'v8';
+const APP_VERSION = 'v8.3';
 const APP_VERSION_DATE = '2026-07-06';
-const APP_VERSION_NOTE = 'iOSでのタップ不良を修正（横はみ出し対策）。加工帳JSONの取込機能を追加：加工投入分が原体在庫から自動差引される（理由「加工」の出庫として記録、重複取込は自動スキップ、エクスポートには含まれない）。';
+const APP_VERSION_NOTE = '品目チップがiOSで選択色にならない不具合を修正（インライン適用＋強制再描画で確実に反映）。加工帳JSON取込で原体在庫を自動差引。';
 document.getElementById('appVersion').textContent = APP_VERSION;
 document.getElementById('appVersionFull').textContent = `${APP_VERSION}（${APP_VERSION_DATE}）`;
 document.getElementById('appVersionNote').textContent = APP_VERSION_NOTE;
@@ -524,7 +523,7 @@ function renderInChips(){
   if(!items.find(i=>i.id===selectedInItem)) selectedInItem=items[0].id;
   items.forEach(it=>{
     const b=document.createElement('button');
-    b.type='button'; b.className='chip'+(it.id===selectedInItem?' selected':'');
+    b.type='button'; b.className='chip'+(it.id===selectedInItem?' selected':''); paintChip(b, it.id===selectedInItem);
     b.textContent=it.name;
     b.onclick=()=>{ selectedInItem=it.id; renderInChips(); };
     wrap.appendChild(b);
@@ -533,6 +532,7 @@ function renderInChips(){
   document.getElementById('inUnitLabel').textContent = cur ? `(${cur.unit})` : '';
   document.getElementById('inUnitLabel2').textContent = cur ? cur.unit : '';
   document.getElementById('inUnitLabel3').textContent = cur ? cur.unit : '';
+  forceRepaint(wrap);
 }
 document.getElementById('inDate').value = todayStr();
 
@@ -596,7 +596,7 @@ function renderOutChips(){
   if(!items.find(i=>i.id===selectedOutItem)) selectedOutItem=items[0].id;
   items.forEach(it=>{
     const b=document.createElement('button');
-    b.type='button'; b.className='chip'+(it.id===selectedOutItem?' selected':'');
+    b.type='button'; b.className='chip'+(it.id===selectedOutItem?' selected':''); paintChip(b, it.id===selectedOutItem);
     b.textContent=it.name;
     b.onclick=()=>{ selectedOutItem=it.id; renderOutChips(); };
     wrap.appendChild(b);
@@ -605,14 +605,16 @@ function renderOutChips(){
   document.getElementById('outUnitLabel').textContent = cur ? `(${cur.unit})` : '';
   const st = cur ? stockFor(cur.id) : {qty:0};
   document.getElementById('outCurrentQty').textContent = cur ? `${st.qty} ${cur.unit}` : '-';
+  forceRepaint(wrap);
 }
 document.querySelectorAll('#outReasonChips .chip').forEach(b=>{
   b.addEventListener('click', ()=>{
-    document.querySelectorAll('#outReasonChips .chip').forEach(x=>x.classList.remove('selected'));
-    b.classList.add('selected');
+    document.querySelectorAll('#outReasonChips .chip').forEach(x=>{ x.classList.remove('selected'); paintChip(x,false); });
+    b.classList.add('selected'); paintChip(b,true);
     selectedOutReason=b.dataset.reason;
   });
 });
+paintChip(document.querySelector('#outReasonChips .chip.selected'), true);
 document.getElementById('outDate').value = todayStr();
 
 function submitOut(){
@@ -756,7 +758,7 @@ function renderInSupplierChips(){
   const wrap=document.getElementById('inSupplierChips'); wrap.innerHTML='';
   suppliers.forEach(s=>{
     const b=document.createElement('button');
-    b.type='button'; b.className='chip'+(!inSupplierCustomMode && selectedSupplier===s.name?' selected':'');
+    b.type='button'; b.className='chip'+(!inSupplierCustomMode && selectedSupplier===s.name?' selected':''); paintChip(b, !inSupplierCustomMode && selectedSupplier===s.name);
     b.textContent=s.name;
     b.onclick=()=>{
       selectedSupplier=s.name; inSupplierCustomMode=false;
@@ -767,7 +769,7 @@ function renderInSupplierChips(){
     wrap.appendChild(b);
   });
   const custom=document.createElement('button');
-  custom.type='button'; custom.className='chip'+(inSupplierCustomMode?' selected':'');
+  custom.type='button'; custom.className='chip'+(inSupplierCustomMode?' selected':''); paintChip(custom, inSupplierCustomMode);
   custom.textContent='＋ 自由入力';
   custom.onclick=()=>{
     inSupplierCustomMode=true; selectedSupplier=null;
@@ -776,6 +778,7 @@ function renderInSupplierChips(){
     renderInSupplierChips(); updateSupplierSaveBtn();
   };
   wrap.appendChild(custom);
+  forceRepaint(wrap);
 }
 document.getElementById('inSupplierCustom').addEventListener('input', updateSupplierSaveBtn);
 document.getElementById('staffName').addEventListener('input', e=>{ saveStaffName(e.target.value); });
@@ -989,6 +992,21 @@ function resetAll(){
 
 /* ---------- ユーティリティ ---------- */
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+/* iOS対策: 動的チップは選択色をインラインで直接当てる */
+function paintChip(el, on){
+  if(on){ el.style.background='#4B2E58'; el.style.borderColor='#4B2E58'; el.style.color='#fff'; }
+  else { el.style.background='#fff'; el.style.borderColor='#CBC6BA'; el.style.color='#211F1C'; }
+  forceRepaint(el);
+}
+/* iOSの描画遅延バグ対策: レイアウトを強制的に読ませて再描画を確定させる */
+function forceRepaint(el){
+  void el.offsetHeight;
+  el.style.webkitTransform='translateZ(0)';
+  requestAnimationFrame(()=>{
+    el.style.webkitTransform='';
+    void el.offsetHeight;
+  });
+}
 
 function updateOnlineBadge(){
   const b=document.getElementById('offlineBadge');
