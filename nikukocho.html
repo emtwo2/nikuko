@@ -74,7 +74,7 @@
 
   .card{
     background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
-    padding:16px; margin-bottom:12px; overflow:hidden;
+    padding:16px; margin-bottom:12px;
   }
 
   label.field{ display:block; margin-bottom:14px; }
@@ -247,7 +247,7 @@
     <div class="card">
       <label class="field">
         <span class="lbl">品目</span>
-        <div class="chipwrap" id="inItemChips"></div>
+        <select id="inItemSelect" onchange="onInItemChange()"></select>
       </label>
       <label class="field">
         <span class="lbl">重量 <span id="inUnitLabel"></span>　※箱ごとに分けて入力すると自動で合計されるで</span>
@@ -264,7 +264,7 @@
       </label>
       <label class="field">
         <span class="lbl">仕入先（任意）</span>
-        <div class="chipwrap" id="inSupplierChips"></div>
+        <select id="inSupplierSelect" onchange="onSupplierSelectChange()"></select>
         <input type="text" id="inSupplierCustom" placeholder="業者名を入力" style="display:none; margin-top:10px;">
         <button type="button" class="btn ghost small" id="inSupplierSaveBtn" style="display:none; margin-top:8px;" onclick="saveCustomSupplierToMaster()">この業者をリストに登録する</button>
       </label>
@@ -282,7 +282,7 @@
     <div class="card">
       <label class="field">
         <span class="lbl">品目</span>
-        <div class="chipwrap" id="outItemChips"></div>
+        <select id="outItemSelect" onchange="onOutItemChange()"></select>
       </label>
       <label class="field">
         <span class="lbl">数量 <span id="outUnitLabel"></span>　（現在庫: <span id="outCurrentQty" class="num">-</span>）</span>
@@ -433,9 +433,9 @@
 <script>
 /* ---------- バージョン情報 ---------- */
 /* 更新するたびにここを書き換える */
-const APP_VERSION = 'v8.3';
+const APP_VERSION = 'v9';
 const APP_VERSION_DATE = '2026-07-06';
-const APP_VERSION_NOTE = '品目チップがiOSで選択色にならない不具合を修正（インライン適用＋強制再描画で確実に反映）。加工帳JSON取込で原体在庫を自動差引。';
+const APP_VERSION_NOTE = 'iOSでチップが反応しない不具合が解決しなかったため、品目・仕入先の選択をタップ式ボタンからネイティブのドロップダウン（select）に変更。OS標準の描画に任せることで根本的に回避。加工帳JSON取込で原体在庫を自動差引。';
 document.getElementById('appVersion').textContent = APP_VERSION;
 document.getElementById('appVersionFull').textContent = `${APP_VERSION}（${APP_VERSION_DATE}）`;
 document.getElementById('appVersionNote').textContent = APP_VERSION_NOTE;
@@ -500,8 +500,8 @@ function showScreen(id){
   if(id==='screen-stock') renderStock();
   if(id==='screen-history') renderHistory();
   if(id==='screen-settings') renderSettings();
-  if(id==='screen-in'){ renderInChips(); renderInSupplierChips(); }
-  if(id==='screen-out') renderOutChips();
+  if(id==='screen-in'){ renderInItemSelect(); renderInSupplierChips(); }
+  if(id==='screen-out') renderOutItemSelect();
 }
 document.querySelectorAll('nav.tabbar button').forEach(b=>{
   b.addEventListener('click', ()=> showScreen(b.dataset.screen));
@@ -517,22 +517,23 @@ function toast(msg){
 }
 
 /* ---------- 納品タブ ---------- */
-function renderInChips(){
-  const wrap=document.getElementById('inItemChips'); wrap.innerHTML='';
-  if(items.length===0){ wrap.innerHTML='<span class="hint">先に「設定」から品目を登録してな</span>'; return; }
+function renderInItemSelect(){
+  const sel=document.getElementById('inItemSelect');
+  if(items.length===0){ sel.innerHTML='<option value="">先に「設定」から品目を登録してな</option>'; return; }
   if(!items.find(i=>i.id===selectedInItem)) selectedInItem=items[0].id;
-  items.forEach(it=>{
-    const b=document.createElement('button');
-    b.type='button'; b.className='chip'+(it.id===selectedInItem?' selected':''); paintChip(b, it.id===selectedInItem);
-    b.textContent=it.name;
-    b.onclick=()=>{ selectedInItem=it.id; renderInChips(); };
-    wrap.appendChild(b);
-  });
+  sel.innerHTML = items.map(it=>`<option value="${it.id}"${it.id===selectedInItem?' selected':''}>${esc(it.name)}</option>`).join('');
+  sel.value = selectedInItem;
   const cur = items.find(i=>i.id===selectedInItem);
   document.getElementById('inUnitLabel').textContent = cur ? `(${cur.unit})` : '';
   document.getElementById('inUnitLabel2').textContent = cur ? cur.unit : '';
   document.getElementById('inUnitLabel3').textContent = cur ? cur.unit : '';
-  forceRepaint(wrap);
+}
+function onInItemChange(){
+  selectedInItem = document.getElementById('inItemSelect').value;
+  const cur = items.find(i=>i.id===selectedInItem);
+  document.getElementById('inUnitLabel').textContent = cur ? `(${cur.unit})` : '';
+  document.getElementById('inUnitLabel2').textContent = cur ? cur.unit : '';
+  document.getElementById('inUnitLabel3').textContent = cur ? cur.unit : '';
 }
 document.getElementById('inDate').value = todayStr();
 
@@ -590,22 +591,23 @@ function submitIn(){
 }
 
 /* ---------- 出庫タブ ---------- */
-function renderOutChips(){
-  const wrap=document.getElementById('outItemChips'); wrap.innerHTML='';
-  if(items.length===0){ wrap.innerHTML='<span class="hint">先に「設定」から品目を登録してな</span>'; return; }
+function renderOutItemSelect(){
+  const sel=document.getElementById('outItemSelect');
+  if(items.length===0){ sel.innerHTML='<option value="">先に「設定」から品目を登録してな</option>'; return; }
   if(!items.find(i=>i.id===selectedOutItem)) selectedOutItem=items[0].id;
-  items.forEach(it=>{
-    const b=document.createElement('button');
-    b.type='button'; b.className='chip'+(it.id===selectedOutItem?' selected':''); paintChip(b, it.id===selectedOutItem);
-    b.textContent=it.name;
-    b.onclick=()=>{ selectedOutItem=it.id; renderOutChips(); };
-    wrap.appendChild(b);
-  });
+  sel.innerHTML = items.map(it=>`<option value="${it.id}"${it.id===selectedOutItem?' selected':''}>${esc(it.name)}</option>`).join('');
+  sel.value = selectedOutItem;
+  updateOutItemInfo();
+}
+function onOutItemChange(){
+  selectedOutItem = document.getElementById('outItemSelect').value;
+  updateOutItemInfo();
+}
+function updateOutItemInfo(){
   const cur = items.find(i=>i.id===selectedOutItem);
   document.getElementById('outUnitLabel').textContent = cur ? `(${cur.unit})` : '';
   const st = cur ? stockFor(cur.id) : {qty:0};
   document.getElementById('outCurrentQty').textContent = cur ? `${st.qty} ${cur.unit}` : '-';
-  forceRepaint(wrap);
 }
 document.querySelectorAll('#outReasonChips .chip').forEach(b=>{
   b.addEventListener('click', ()=>{
@@ -627,7 +629,7 @@ function submitOut(){
   document.getElementById('outQty').value='';
   const nm = items.find(i=>i.id===selectedOutItem)?.name || '';
   toast(`${nm} ${qty}${items.find(i=>i.id===selectedOutItem)?.unit||''} を出庫記録したで`);
-  renderOutChips();
+  renderOutItemSelect();
   refreshBadges();
 }
 
@@ -755,30 +757,26 @@ function deleteLog(id){
 }
 
 function renderInSupplierChips(){
-  const wrap=document.getElementById('inSupplierChips'); wrap.innerHTML='';
-  suppliers.forEach(s=>{
-    const b=document.createElement('button');
-    b.type='button'; b.className='chip'+(!inSupplierCustomMode && selectedSupplier===s.name?' selected':''); paintChip(b, !inSupplierCustomMode && selectedSupplier===s.name);
-    b.textContent=s.name;
-    b.onclick=()=>{
-      selectedSupplier=s.name; inSupplierCustomMode=false;
-      document.getElementById('inSupplierCustom').style.display='none';
-      document.getElementById('inSupplierSaveBtn').style.display='none';
-      renderInSupplierChips();
-    };
-    wrap.appendChild(b);
-  });
-  const custom=document.createElement('button');
-  custom.type='button'; custom.className='chip'+(inSupplierCustomMode?' selected':''); paintChip(custom, inSupplierCustomMode);
-  custom.textContent='＋ 自由入力';
-  custom.onclick=()=>{
+  const sel=document.getElementById('inSupplierSelect');
+  const opts = ['<option value="">（選択しない）</option>']
+    .concat(suppliers.map(s=>`<option value="${esc(s.name)}"${!inSupplierCustomMode && selectedSupplier===s.name?' selected':''}>${esc(s.name)}</option>`))
+    .concat(['<option value="__custom__"'+(inSupplierCustomMode?' selected':'')+'>＋ 自由入力</option>']);
+  sel.innerHTML = opts.join('');
+  sel.value = inSupplierCustomMode ? '__custom__' : (selectedSupplier || '');
+  document.getElementById('inSupplierCustom').style.display = inSupplierCustomMode ? 'block' : 'none';
+  updateSupplierSaveBtn();
+}
+function onSupplierSelectChange(){
+  const v=document.getElementById('inSupplierSelect').value;
+  if(v==='__custom__'){
     inSupplierCustomMode=true; selectedSupplier=null;
     document.getElementById('inSupplierCustom').style.display='block';
     document.getElementById('inSupplierCustom').focus();
-    renderInSupplierChips(); updateSupplierSaveBtn();
-  };
-  wrap.appendChild(custom);
-  forceRepaint(wrap);
+  } else {
+    inSupplierCustomMode=false; selectedSupplier = v || null;
+    document.getElementById('inSupplierCustom').style.display='none';
+    document.getElementById('inSupplierSaveBtn').style.display='none';
+  }
 }
 document.getElementById('inSupplierCustom').addEventListener('input', updateSupplierSaveBtn);
 document.getElementById('staffName').addEventListener('input', e=>{ saveStaffName(e.target.value); });
@@ -968,7 +966,7 @@ function restoreFromFile(e){
       selectedSupplier = null; inSupplierCustomMode = false;
       toast(`${when}時点のバックアップを復元したで`);
       renderSettings(); renderStock(); renderHistory();
-      renderInChips(); renderInSupplierChips(); renderOutChips();
+      renderInItemSelect(); renderInSupplierChips(); renderOutItemSelect();
     }catch(err){
       toast('ファイルの読み込みに失敗したで。JSON形式か確認してな');
     }
