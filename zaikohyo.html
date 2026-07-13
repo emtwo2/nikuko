@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="在庫表">
+<meta name="mobile-web-app-capable" content="yes">
+<title>在庫表 - 加工品 日次台帳</title>
+<style>
+  :root{
+    --paper:#EFEDE7; --paper2:#E6E2D8; --card:#FBFAF7;
+    --ink:#211F1C; --ink-soft:#6b665c; --line:#CBC6BA;
+    --stamp:#33556F; --stamp-soft:#E2E9EE; --stamp-deep:#213C4F;
+    --alert:#AA3A2E; --alert-soft:#F6E1DD;
+    --good:#3F6B4A; --good-soft:#E4EEE6;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; overflow-x:hidden; width:100%;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased; padding-bottom:env(safe-area-inset-bottom);
+    overscroll-behavior:none;
+  }
+  .num{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; font-variant-numeric:tabular-nums;}
+
+  header.app{
+    padding:calc(env(safe-area-inset-top) + 14px) 20px 14px;
+    background:var(--paper); border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:10;
+    display:flex; align-items:baseline; justify-content:space-between;
+  }
+  header.app .brand{display:flex; align-items:baseline; gap:10px;}
+  header.app h1{ font-size:22px; margin:0; font-weight:800; letter-spacing:.02em; }
+  header.app .stamp-mark{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:22px; height:22px; border-radius:50%;
+    border:1.6px solid var(--stamp); color:var(--stamp);
+    font-size:11px; font-weight:800; transform:rotate(-8deg);
+  }
+  header.app .sub{font-size:11px; color:var(--ink-soft);}
+
+  main{ padding:16px 16px 100px; max-width:900px; margin:0 auto; }
+  .screen{ display:none; animation:fade .18s ease; }
+  .screen.active{ display:block; }
+  @keyframes fade{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;} }
+
+  .section-title{
+    font-size:12px; font-weight:800; letter-spacing:.12em; color:var(--stamp);
+    text-transform:uppercase; margin:22px 0 10px;
+  }
+  .section-title:first-child{ margin-top:2px; }
+
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px; margin-bottom:12px;
+  }
+
+  .modewrap{ display:flex; gap:8px; margin-bottom:14px; }
+  .modewrap button{
+    flex:1; padding:11px; border-radius:20px; border:1.6px solid var(--line);
+    background:#fff; font-size:14px; font-weight:700; color:var(--ink);
+  }
+  .modewrap button.selected{ background:var(--stamp); border-color:var(--stamp); color:#fff; }
+
+  input[type=month]{
+    width:100%; font-size:17px; padding:12px 12px; border-radius:10px;
+    border:1.4px solid var(--line); background:#fff; color:var(--ink); font-family:inherit;
+    -webkit-appearance:none; appearance:none; margin-bottom:14px;
+  }
+
+  .btn{
+    padding:11px 16px; border-radius:10px; border:1.6px solid var(--stamp);
+    background:transparent; color:var(--stamp); font-size:13.5px; font-weight:700;
+  }
+
+  .tablewrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--line); border-radius:var(--radius); background:var(--card); }
+  table.ledger{ border-collapse:collapse; font-size:12px; white-space:nowrap; }
+  table.ledger th, table.ledger td{ padding:7px 9px; text-align:right; border-bottom:1px solid var(--line); border-left:1px solid var(--line); }
+  table.ledger th:first-child, table.ledger td:first-child{
+    text-align:left; position:sticky; left:0; background:var(--card); border-left:none; z-index:2;
+    box-shadow:2px 0 3px -2px rgba(0,0,0,.15);
+  }
+  table.ledger thead th{ background:var(--stamp-soft); color:var(--stamp-deep); font-weight:800; font-size:10.5px; }
+  table.ledger thead tr:first-child th:first-child{ background:var(--stamp-soft); }
+  table.ledger tbody tr:nth-child(even) td{ background:rgba(0,0,0,.02); }
+  table.ledger tbody tr:nth-child(even) td:first-child{ background:#F2F0EA; }
+  table.ledger td.bal{ font-weight:800; color:var(--stamp-deep); }
+  table.ledger td.zero{ color:#c7c2b6; }
+  table.ledger td.estimate{ color:#9a9488; font-style:italic; }
+  table.ledger td.today{ background:var(--stamp-soft) !important; }
+  .colhead-item{ text-align:center !important; }
+
+  .empty{ text-align:center; color:var(--ink-soft); font-size:13.5px; padding:30px 10px; }
+  .hint{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; }
+
+  nav.tabbar{
+    position:fixed; bottom:0; left:0; right:0; z-index:20;
+    background:var(--card); border-top:1px solid var(--line);
+    padding:8px 6px calc(env(safe-area-inset-bottom) + 6px);
+    display:flex; justify-content:space-around;
+  }
+  nav.tabbar button{
+    background:none; border:none; flex:1; padding:6px 2px;
+    font-size:12px; font-weight:700; color:var(--ink-soft);
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+  }
+  nav.tabbar button .dot{ width:6px; height:6px; border-radius:50%; background:transparent; }
+  nav.tabbar button.active{ color:var(--stamp); }
+  nav.tabbar button.active .dot{ background:var(--stamp); }
+</style>
+</head>
+<body>
+
+<header class="app">
+  <div class="brand">
+    <span class="stamp-mark">表</span>
+    <div>
+      <h1>在庫表</h1>
+      <div class="sub">加工品 日次台帳 ・ <span id="appVersion" class="num"></span></div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- 肉系 -->
+  <section class="screen" id="screen-meat">
+    <div class="section-title">肉系（加工帳）</div>
+    <div class="card">
+      <div class="modewrap" id="meatModeWrap">
+        <button type="button" class="selected" data-mode="month">月間</button>
+        <button type="button" data-mode="2weeks">直近2週間</button>
+      </div>
+      <input type="month" id="meatMonth">
+      <div class="tablewrap"><table class="ledger" id="meatTable"></table></div>
+      <div style="height:12px"></div>
+      <button class="btn" onclick="downloadCsv('meat')">CSVをダウンロード</button>
+    </div>
+  </section>
+
+  <!-- 惣菜系 -->
+  <section class="screen" id="screen-sozai">
+    <div class="section-title">惣菜系（惣菜帳）</div>
+    <div class="card">
+      <div class="modewrap" id="sozaiModeWrap">
+        <button type="button" class="selected" data-mode="month">月間</button>
+        <button type="button" data-mode="2weeks">直近2週間</button>
+      </div>
+      <input type="month" id="sozaiMonth">
+      <div class="tablewrap"><table class="ledger" id="sozaiTable"></table></div>
+      <div style="height:12px"></div>
+      <button class="btn" onclick="downloadCsv('sozai')">CSVをダウンロード</button>
+    </div>
+  </section>
+
+</main>
+
+<nav class="tabbar">
+  <button data-screen="screen-meat"><span class="dot"></span>肉系</button>
+  <button data-screen="screen-sozai"><span class="dot"></span>惣菜系</button>
+</nav>
+
+<script>
+/* ---------- バージョン情報 ---------- */
+const APP_VERSION = 'v1';
+document.getElementById('appVersion').textContent = APP_VERSION;
+
+/* ---------- ユーティリティ ---------- */
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function r3(n){ return Math.round(n*1000)/1000; }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function enumerateDates(start, end){
+  const dates=[]; let d=new Date(start+'T00:00:00');
+  const e=new Date(end+'T00:00:00');
+  while(d<=e){ dates.push(d.toISOString().slice(0,10)); d.setDate(d.getDate()+1); }
+  return dates;
+}
+function addDays(dateStr, n){
+  const d=new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10);
+}
+function monthRange(ym){
+  const [y,m]=ym.split('-').map(Number);
+  const start=`${ym}-01`;
+  const end=new Date(y, m, 0).toISOString().slice(0,10);
+  return {start,end};
+}
+function loadJson(k, fb){ try{ return JSON.parse(localStorage.getItem(k)) ?? fb; }catch(e){ return fb; } }
+
+/* ---------- 日次残高の共通計算 ---------- */
+function avgDailyOut30(evs, today){
+  const start = addDays(today, -30);
+  const relevant = evs.filter(e=>e.type==='out' && e.date>=start && e.date<today);
+  const total = relevant.reduce((s,e)=>s+e.qty,0);
+  return r3(total/30);
+}
+
+function buildDailyRows(itemsList, eventsByItem, startDate, endDate){
+  const dates = enumerateDates(startDate, endDate);
+  const result = {};
+  itemsList.forEach(it=>{
+    const evs = eventsByItem[it.id] || [];
+    let bal = 0;
+    evs.filter(e=>e.date < startDate).forEach(e=> bal += (e.type==='in'? e.qty : -e.qty));
+    const carryIn = r3(bal);
+    const days = dates.map(d=>{
+      const dayEvs = evs.filter(e=>e.date===d);
+      const inQty = dayEvs.filter(e=>e.type==='in').reduce((s,e)=>s+e.qty,0);
+      const outQty = dayEvs.filter(e=>e.type==='out').reduce((s,e)=>s+e.qty,0);
+      bal += inQty - outQty;
+      return {date:d, in:r3(inQty), out:r3(outQty), bal:r3(bal)};
+    });
+    result[it.id] = {carryIn, days};
+  });
+  return {dates, result};
+}
+
+/* ---------- データ取得: 肉系(加工帳) ---------- */
+function getMeatData(){
+  const items = (loadJson('kakocho_items', []) || []).filter(i=>i.kind!=='raw');
+  const batches = loadJson('kakocho_batches', []) || [];
+  const ships = loadJson('kakocho_ships', []) || [];
+  const eventsByItem = {};
+  items.forEach(it=> eventsByItem[it.id]=[]);
+  batches.forEach(b=>{
+    (b.outputs||[]).forEach(o=>{
+      if(eventsByItem[o.itemId]) eventsByItem[o.itemId].push({date:b.date, type:'in', qty:o.qty});
+    });
+  });
+  ships.forEach(s=>{
+    if(eventsByItem[s.itemId]) eventsByItem[s.itemId].push({date:s.date, type:'out', qty:s.qty});
+  });
+  return {items, eventsByItem};
+}
+
+/* ---------- データ取得: 惣菜系(惣菜帳) ---------- */
+function getSozaiData(){
+  const items = loadJson('sozaicho_items', []) || [];
+  const logs = loadJson('sozaicho_logs', []) || [];
+  const eventsByItem = {};
+  items.forEach(it=> eventsByItem[it.id]=[]);
+  logs.forEach(l=>{
+    if(eventsByItem[l.itemId]) eventsByItem[l.itemId].push({date:l.date, type:l.type, qty:l.qty});
+  });
+  return {items, eventsByItem};
+}
+
+/* ---------- 画面切替 ---------- */
+let meatMode='month', sozaiMode='month';
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('nav.tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.screen===id));
+  if(id==='screen-meat') renderTable('meat');
+  if(id==='screen-sozai') renderTable('sozai');
+}
+document.querySelectorAll('nav.tabbar button').forEach(b=>{
+  b.addEventListener('click', ()=> showScreen(b.dataset.screen));
+});
+
+document.getElementById('meatMonth').value = todayStr().slice(0,7);
+document.getElementById('sozaiMonth').value = todayStr().slice(0,7);
+document.getElementById('meatMonth').addEventListener('change', ()=>renderTable('meat'));
+document.getElementById('sozaiMonth').addEventListener('change', ()=>renderTable('sozai'));
+
+document.querySelectorAll('#meatModeWrap button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('#meatModeWrap button').forEach(x=>x.classList.remove('selected'));
+    b.classList.add('selected'); meatMode=b.dataset.mode;
+    document.getElementById('meatMonth').style.display = meatMode==='month' ? 'block':'none';
+    renderTable('meat');
+  });
+});
+document.querySelectorAll('#sozaiModeWrap button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('#sozaiModeWrap button').forEach(x=>x.classList.remove('selected'));
+    b.classList.add('selected'); sozaiMode=b.dataset.mode;
+    document.getElementById('sozaiMonth').style.display = sozaiMode==='month' ? 'block':'none';
+    renderTable('sozai');
+  });
+});
+
+/* ---------- テーブル描画 ---------- */
+let lastRender={};
+function renderTable(kind){
+  const isMeat = kind==='meat';
+  const mode = isMeat ? meatMode : sozaiMode;
+  const {items, eventsByItem} = isMeat ? getMeatData() : getSozaiData();
+  const tableEl = document.getElementById(isMeat?'meatTable':'sozaiTable');
+
+  if(items.length===0){
+    tableEl.innerHTML = `<tr><td class="empty" style="position:static;">${isMeat?'加工帳':'惣菜帳'}にまだ品目が登録されてへんで</td></tr>`;
+    lastRender[kind]=null;
+    return;
+  }
+
+  let start, end;
+  if(mode==='month'){
+    const ym = document.getElementById(isMeat?'meatMonth':'sozaiMonth').value || todayStr().slice(0,7);
+    const r = monthRange(ym); start=r.start; end=r.end;
+  } else {
+    start = todayStr(); end = addDays(start, 13);
+  }
+
+  const {dates, result} = buildDailyRows(items, eventsByItem, start, end);
+  const today = todayStr();
+
+  const avgOutByItem = {};
+  if(mode==='2weeks'){
+    items.forEach(it=>{ avgOutByItem[it.id] = avgDailyOut30(eventsByItem[it.id]||[], today); });
+  }
+
+  let h1 = '<tr><th rowspan="2">日付</th>';
+  items.forEach(it=>{ h1 += `<th colspan="3" class="colhead-item">${esc(it.name)}<br><span style="font-weight:600;">(${esc(it.unit||'')})</span></th>`; });
+  h1 += '</tr>';
+  let h2 = '<tr>';
+  items.forEach(()=>{ h2 += '<th>入</th><th>出</th><th>残</th>'; });
+  h2 += '</tr>';
+
+  let body = '';
+  dates.forEach(d=>{
+    const isToday = d===today;
+    const dObj = new Date(d+'T00:00:00');
+    const wd = ['日','月','火','水','木','金','土'][dObj.getDay()];
+    body += `<tr>`;
+    body += `<td class="${isToday?'today':''}">${d.slice(5).replace('-','/')}(${wd})</td>`;
+    items.forEach(it=>{
+      const day = result[it.id].days.find(x=>x.date===d);
+      const cls = isToday ? 'today' : '';
+      const inTxt = day.in ? day.in : '';
+      let outTxt = day.out ? day.out : '';
+      let outCls = `${cls} ${!day.out?'zero':''}`;
+      if(mode==='2weeks' && !day.out && avgOutByItem[it.id]>0){
+        outTxt = '〜'+avgOutByItem[it.id];
+        outCls = `${cls} estimate`;
+      }
+      body += `<td class="num ${cls} ${!day.in?'zero':''}">${inTxt}</td>`;
+      body += `<td class="num ${outCls}">${outTxt}</td>`;
+      body += `<td class="num bal ${cls}">${day.bal}</td>`;
+    });
+    body += `</tr>`;
+  });
+
+  tableEl.innerHTML = `<thead>${h1}${h2}</thead><tbody>${body}</tbody>`;
+  if(mode==='2weeks'){
+    tableEl.insertAdjacentHTML('afterend', '<p class="hint" style="margin-top:8px;">※「〜」の数字は直近30日の平均出数を目安として表示してるだけで、実績やないで。日付が変わると自動で更新される。</p>');
+  }
+  lastRender[kind] = {items, dates, result};
+}
+
+/* ---------- CSV出力 ---------- */
+function downloadCsv(kind){
+  const data = lastRender[kind];
+  if(!data){ return; }
+  const {items, dates, result} = data;
+  let csv = '\uFEFF日付';
+  items.forEach(it=>{ csv += `,${it.name}_入,${it.name}_出,${it.name}_残`; });
+  csv += '\n';
+  dates.forEach(d=>{
+    csv += d;
+    items.forEach(it=>{
+      const day = result[it.id].days.find(x=>x.date===d);
+      csv += `,${day.in},${day.out},${day.bal}`;
+    });
+    csv += '\n';
+  });
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `在庫表_${kind}_${todayStr()}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+}
+
+/* 初期表示 */
+showScreen('screen-meat');
+</script>
+</body>
+</html>
