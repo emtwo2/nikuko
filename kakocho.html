@@ -81,8 +81,8 @@
     padding:11px 16px; border-radius:20px; border:1.6px solid var(--line);
     background:#fff; font-size:15px; font-weight:600; color:var(--ink);
   }
-  .chip.selected{ background:var(--stamp); border-color:var(--stamp); color:#fff; }
-  .chip.rawstyle.selected{ background:var(--raw); border-color:var(--raw); }
+  .chip.selected{ background:#2E5844; border-color:#2E5844; color:#fff; }
+  .chip.rawstyle.selected{ background:#4B2E58; border-color:#4B2E58; }
 
   .btn{
     width:100%; padding:15px; border-radius:12px; border:none; font-size:16.5px;
@@ -203,6 +203,7 @@
   .hint{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; }
   .divider{ height:1px; background:var(--line); margin:18px 0; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -225,10 +226,10 @@
     <div class="card">
       <label class="field">
         <span class="lbl">投入する原体</span>
-        <div class="chipwrap" id="rawChips"></div>
+        <select id="rawSelect" onchange="onRawSelectChange()"></select>
       </label>
       <label class="field">
-        <span class="lbl">投入重量 (kg)　※実測値</span>
+        <span class="lbl">投入重量 <span id="rawUnitLabel">(kg)</span>　※実測値</span>
         <input type="number" inputmode="decimal" id="inputQty" placeholder="0" oninput="updateYieldPreview()">
       </label>
 
@@ -238,7 +239,7 @@
         <button type="button" class="btn ghost small" onclick="addOutputRow()">＋ 商品を追加</button>
         <div class="yieldbar">
           <span class="l">出来高合計 / 歩留まり</span>
-          <span class="v num"><span id="outputTotal">0</span>kg / <span id="yieldPreview">-</span></span>
+          <span class="v num"><span id="outputTotal">0</span><span id="outputTotalUnit">kg</span> / <span id="yieldPreview">-</span></span>
         </div>
       </label>
 
@@ -260,10 +261,10 @@
     <div class="card">
       <label class="field">
         <span class="lbl">品目（加工品）</span>
-        <div class="chipwrap" id="shipChips"></div>
+        <select id="shipSelect" onchange="onShipSelectChange()"></select>
       </label>
       <label class="field">
-        <span class="lbl">数量 (kg)　（現在庫: <span id="shipCurrentQty" class="num">-</span>）</span>
+        <span class="lbl">数量 <span id="shipUnitLabel">(kg)</span>　（現在庫: <span id="shipCurrentQty" class="num">-</span>）</span>
         <input type="number" inputmode="decimal" id="shipQty" placeholder="0">
       </label>
       <label class="field">
@@ -333,6 +334,56 @@
       </label>
     </div>
 
+    <div class="section-title">Excelから品目マスタを取り込む</div>
+    <div class="card">
+      <p class="hint">SKUマスタなどのExcel(.xlsx)・CSVファイルをそのまま読み込んで、品目名の列を選ぶだけで一括登録できるで。写真や保管場所の列があっても無視して品目名だけ拾うから、既存のファイルをそのまま使ってな。</p>
+      <div style="height:10px"></div>
+      <input type="file" id="excelFileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="onExcelSelected(event)">
+      <button class="btn ghost" onclick="document.getElementById('excelFileInput').click()">Excel/CSVファイルを選ぶ</button>
+
+      <div id="excelMapArea" style="display:none; margin-top:16px;">
+        <label class="field">
+          <span class="lbl">品目名が入っている列</span>
+          <select id="excelNameCol"></select>
+        </label>
+        <label class="field">
+          <span class="lbl">この列が「原体か加工品か」を示している（任意）</span>
+          <select id="excelKindCol">
+            <option value="">使わない（下の一括区分を使う）</option>
+          </select>
+        </label>
+        <label class="field" id="excelKindValWrap">
+          <span class="lbl">その列で「原体」を表す文字（部分一致）</span>
+          <input type="text" id="excelKindRawVal" placeholder="例）原体・原料・枝肉 など">
+        </label>
+        <label class="field">
+          <span class="lbl">上の列を使わない場合、この取り込み分は全部</span>
+          <div class="chipwrap" id="excelDefaultKindChips">
+            <button type="button" class="chip rawstyle selected" data-kind="raw">原体</button>
+            <button type="button" class="chip" data-kind="proc">加工品</button>
+          </div>
+        </label>
+        <label class="field">
+          <span class="lbl">単位の列（任意）</span>
+          <select id="excelUnitCol">
+            <option value="">使わない（下のデフォルト単位を使う）</option>
+          </select>
+        </label>
+        <label class="field" id="excelDefaultUnitWrap">
+          <span class="lbl">単位列を使わない場合、この取り込み分は全部</span>
+          <div class="chipwrap" id="excelDefaultUnitChips">
+            <button type="button" class="chip selected" data-unit="kg">kg</button>
+            <button type="button" class="chip" data-unit="個">個</button>
+            <button type="button" class="chip" data-unit="パック">パック</button>
+          </div>
+        </label>
+        <p class="hint" id="excelPreview" style="margin-bottom:10px;"></p>
+        <button class="btn" onclick="confirmExcelImport()">この内容で取り込む</button>
+        <div style="height:8px"></div>
+        <button class="btn ghost" onclick="cancelExcelImport()" style="border-color:var(--ink-soft); color:var(--ink-soft);">キャンセル</button>
+      </div>
+    </div>
+
     <div class="section-title">品目マスタ（原体・加工品）</div>
     <div class="card">
       <p class="hint">「肉庫帳から取り込む」を押すと、同じ端末の肉庫帳に登録されてる品目を原体として取り込めるで（IDも共通になる）。</p>
@@ -351,6 +402,14 @@
           <button type="button" class="chip selected" data-kind="proc">加工品</button>
           <button type="button" class="chip rawstyle" data-kind="raw">原体</button>
         </div>
+      </label>
+      <label class="field">
+        <span class="lbl">単位</span>
+        <select id="newItemUnit">
+          <option value="kg">kg</option>
+          <option value="個">個</option>
+          <option value="パック">パック</option>
+        </select>
       </label>
       <button class="btn ghost" onclick="addItem()">品目を追加</button>
     </div>
@@ -400,7 +459,7 @@
 
 <script>
 /* ---------- バージョン情報 ---------- */
-const APP_VERSION = 'v1';
+const APP_VERSION = 'v3';
 const APP_VERSION_DATE = '2026-07-06';
 const APP_VERSION_NOTE = '初版。バッチ入力（投入原体＋複数出来高）・加工品在庫・歩留まり自動蓄積・月次出入表（ロス帳JSON取込＋CSV）・肉庫帳から品目取込。';
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -416,6 +475,23 @@ function saveJson(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+/* iOS対策: チップの選択色をインラインで直接当てる */
+function paintChip(el, on, color){
+  color=color||'#2E5844';
+  if(on){ el.style.background=color; el.style.borderColor=color; el.style.color='#fff'; }
+  else { el.style.background='#fff'; el.style.borderColor='#CBC6BA'; el.style.color='#211F1C'; }
+  forceRepaint(el);
+}
+function forceRepaint(el){
+  void el.offsetHeight;
+  el.style.webkitTransform='translateZ(0)';
+  requestAnimationFrame(()=>{ el.style.webkitTransform=''; void el.offsetHeight; });
+}
+function repaintKindChips(){
+  document.querySelectorAll('#newItemKindChips .chip').forEach(x=>{
+    paintChip(x, x.classList.contains('selected'), x.dataset.kind==='raw'?'#4B2E58':'#2E5844');
+  });
+}
 function r1(n){ return Math.round(n*10)/10; }
 function r3(n){ return Math.round(n*1000)/1000; }
 
@@ -493,17 +569,20 @@ function toast(msg){
 
 /* ---------- バッチ入力 ---------- */
 function renderRawChips(){
-  const wrap=document.getElementById('rawChips'); wrap.innerHTML='';
+  const sel=document.getElementById('rawSelect');
   const raws=rawItems();
-  if(raws.length===0){ wrap.innerHTML='<span class="hint">原体が未登録や。「設定」で肉庫帳から取り込むか、区分「原体」で追加してな</span>'; return; }
+  if(raws.length===0){ sel.innerHTML='<option value="">原体が未登録や。「設定」で肉庫帳から取り込むか追加してな</option>'; return; }
   if(!raws.find(i=>i.id===selectedRaw)) selectedRaw=raws[0].id;
-  raws.forEach(it=>{
-    const b=document.createElement('button');
-    b.type='button'; b.className='chip rawstyle'+(it.id===selectedRaw?' selected':'');
-    b.textContent=it.name;
-    b.onclick=()=>{ selectedRaw=it.id; renderRawChips(); };
-    wrap.appendChild(b);
-  });
+  sel.innerHTML = raws.map(it=>`<option value="${it.id}"${it.id===selectedRaw?' selected':''}>${esc(it.name)}</option>`).join('');
+  sel.value = selectedRaw;
+  updateRawUnitLabel();
+}
+function onRawSelectChange(){ selectedRaw = document.getElementById('rawSelect').value; updateRawUnitLabel(); updateYieldPreview(); }
+function updateRawUnitLabel(){
+  const cur = items.find(i=>i.id===selectedRaw);
+  const u = cur ? (cur.unit||'kg') : 'kg';
+  document.getElementById('rawUnitLabel').textContent = `(${u})`;
+  document.getElementById('outputTotalUnit').textContent = u;
 }
 function renderOutputRows(){
   const wrap=document.getElementById('outputRows'); wrap.innerHTML='';
@@ -517,12 +596,17 @@ function renderOutputRows(){
       if(row.itemId===p.id) o.selected=true;
       sel.appendChild(o);
     });
-    sel.onchange=e=>{ outputRows[idx].itemId=e.target.value; };
-    div.appendChild(sel);
     const inp=document.createElement('input');
-    inp.type='number'; inp.inputMode='decimal'; inp.placeholder='kg'; inp.value=row.qty;
+    inp.type='number'; inp.inputMode='decimal'; inp.value=row.qty;
+    function refreshRowUnit(){
+      const it=procs.find(p=>p.id===sel.value);
+      inp.placeholder = it ? it.unit : 'kg';
+    }
+    sel.onchange=e=>{ outputRows[idx].itemId=e.target.value; refreshRowUnit(); };
+    div.appendChild(sel);
     inp.addEventListener('input', e=>{ outputRows[idx].qty=e.target.value; updateYieldPreview(); });
     div.appendChild(inp);
+    refreshRowUnit();
     if(outputRows.length>1){
       const rm=document.createElement('button');
       rm.type='button'; rm.className='rm'; rm.textContent='×';
@@ -544,6 +628,7 @@ document.getElementById('batchDate').value = todayStr();
 function submitBatch(){
   const raws=rawItems();
   if(!selectedRaw || !raws.find(i=>i.id===selectedRaw)){ toast('投入する原体を選んでな'); return; }
+  const rawUnit = items.find(i=>i.id===selectedRaw)?.unit || 'kg';
   const inputQty=parseFloat(document.getElementById('inputQty').value);
   if(!inputQty || inputQty<=0){ toast('投入重量を入力してな'); return; }
   const outs = outputRows
@@ -552,7 +637,7 @@ function submitBatch(){
   if(outs.length===0){ toast('出来高を1行以上入力してな'); return; }
   const totalOut = outs.reduce((s,o)=>s+o.qty,0);
   if(totalOut > inputQty){
-    if(!confirm(`出来高合計(${r3(totalOut)}kg)が投入(${inputQty}kg)を超えてるで。歩留まり100%超になるけど記録してええか？`)) return;
+    if(!confirm(`出来高合計(${r3(totalOut)}${rawUnit})が投入(${inputQty}${rawUnit})を超えてるで。歩留まり100%超になるけど記録してええか？`)) return;
   }
   const staff=document.getElementById('batchStaff').value.trim() || loadStaffName();
   const date=document.getElementById('batchDate').value || todayStr();
@@ -563,23 +648,28 @@ function submitBatch(){
   document.getElementById('inputQty').value='';
   renderOutputRows(); updateYieldPreview();
   const rawName = items.find(i=>i.id===selectedRaw)?.name||'';
-  toast(`${rawName} ${inputQty}kg → ${r3(totalOut)}kg（歩留まり${Math.round(yieldRate*1000)/10}%）を記録したで`);
+  toast(`${rawName} ${inputQty}${rawUnit} → ${r3(totalOut)}${rawUnit}（歩留まり${Math.round(yieldRate*1000)/10}%）を記録したで`);
 }
 
 /* ---------- 出荷 ---------- */
 function renderShipChips(){
-  const wrap=document.getElementById('shipChips'); wrap.innerHTML='';
+  const sel=document.getElementById('shipSelect');
   const procs=procItems();
-  if(procs.length===0){ wrap.innerHTML='<span class="hint">加工品が未登録や。「設定」から追加してな</span>'; return; }
+  if(procs.length===0){ sel.innerHTML='<option value="">加工品が未登録や。「設定」から追加してな</option>'; document.getElementById('shipCurrentQty').textContent='-'; return; }
   if(!procs.find(i=>i.id===selectedShipItem)) selectedShipItem=procs[0].id;
-  procs.forEach(it=>{
-    const b=document.createElement('button');
-    b.type='button'; b.className='chip'+(it.id===selectedShipItem?' selected':'');
-    b.textContent=it.name;
-    b.onclick=()=>{ selectedShipItem=it.id; renderShipChips(); };
-    wrap.appendChild(b);
-  });
-  document.getElementById('shipCurrentQty').textContent = selectedShipItem ? stockFor(selectedShipItem)+'kg' : '-';
+  sel.innerHTML = procs.map(it=>`<option value="${it.id}"${it.id===selectedShipItem?' selected':''}>${esc(it.name)}</option>`).join('');
+  sel.value = selectedShipItem;
+  updateShipInfo();
+}
+function onShipSelectChange(){
+  selectedShipItem = document.getElementById('shipSelect').value;
+  updateShipInfo();
+}
+function updateShipInfo(){
+  const cur = items.find(i=>i.id===selectedShipItem);
+  const u = cur ? (cur.unit||'kg') : 'kg';
+  document.getElementById('shipUnitLabel').textContent = `(${u})`;
+  document.getElementById('shipCurrentQty').textContent = selectedShipItem ? stockFor(selectedShipItem)+u : '-';
 }
 document.getElementById('shipDate').value = todayStr();
 function submitShip(){
@@ -591,20 +681,21 @@ function submitShip(){
   ships.push({id:uid(), itemId:selectedShipItem, qty, dest, date, ts:Date.now(), synced:false});
   saveShips();
   document.getElementById('shipQty').value='';
-  const nm=items.find(i=>i.id===selectedShipItem)?.name||'';
-  toast(`${nm} ${qty}kg の出荷を記録したで`);
+  const cur=items.find(i=>i.id===selectedShipItem);
+  toast(`${cur?.name||''} ${qty}${cur?.unit||'kg'} の出荷を記録したで`);
   renderShipChips();
 }
 
 /* ---------- 在庫・歩留まり ---------- */
 function renderStock(){
   const list=document.getElementById('stockList'); list.innerHTML='';
-  let total=0;
+  const totalByUnit={};
   const procs=procItems();
   if(procs.length===0){ list.innerHTML='<div class="empty">加工品が未登録やで</div>'; }
   procs.forEach(it=>{
     const q=stockFor(it.id);
-    total+=q;
+    const u=it.unit||'kg';
+    totalByUnit[u]=(totalByUnit[u]||0)+q;
     const row=document.createElement('div');
     row.className='stockrow'+(q<0?' low':'');
     row.innerHTML=`
@@ -612,10 +703,12 @@ function renderStock(){
         <div class="name">${esc(it.name)}</div>
         ${q<0?'<span class="taglow">マイナス在庫（記録もれの可能性）</span>':''}
       </div>
-      <div class="qty"><div class="n num">${q}</div><div class="u">kg</div></div>`;
+      <div class="qty"><div class="n num">${q}</div><div class="u">${esc(u)}</div></div>`;
     list.appendChild(row);
   });
-  document.getElementById('totalStock').textContent = r3(total)+'kg';
+  const totalText = Object.keys(totalByUnit).length===0 ? '0' :
+    Object.entries(totalByUnit).map(([u,v])=>`${r3(v)}${u}`).join(' ・ ');
+  document.getElementById('totalStock').textContent = totalText;
   document.getElementById('batchCount').textContent = batches.length;
 
   /* 歩留まり統計 */
@@ -651,29 +744,31 @@ function renderHistory(){
   all.forEach(x=>{
     const div=document.createElement('div');
     if(x._t==='batch'){
-      const rawName=items.find(i=>i.id===x.inputItemId)?.name||'(削除済み)';
+      const rawItem=items.find(i=>i.id===x.inputItemId);
+      const rawName=rawItem?.name||'(削除済み)';
+      const rawUnit=rawItem?.unit||'kg';
       const outsText=(x.outputs||[]).map(o=>{
-        const nm=items.find(i=>i.id===o.itemId)?.name||'(削除済み)';
-        return `${esc(nm)} ${o.qty}kg`;
+        const it=items.find(i=>i.id===o.itemId);
+        return `${esc(it?.name||'(削除済み)')} ${o.qty}${it?.unit||'kg'}`;
       }).join(' ／ ');
       div.className='logitem';
       div.innerHTML=`
         <div class="stampbadge">加<span class="num" style="font-size:8px;">${x.date.slice(5).replace('-','/')}</span></div>
         <div class="body">
-          <div class="t1">${esc(rawName)} ${x.inputQty}kg 投入</div>
+          <div class="t1">${esc(rawName)} ${x.inputQty}${rawUnit} 投入</div>
           <div class="t2 num">歩留まり ${Math.round(x.yield*1000)/10}% ・ ${esc(x.staff||'担当者未記入')}${x.synced?' ・ 同期済み':''}</div>
           <div class="t3">→ ${outsText}</div>
         </div>
         <button class="del" onclick="deleteBatch('${x.id}')">削除</button>`;
     } else {
-      const nm=items.find(i=>i.id===x.itemId)?.name||'(削除済み)';
+      const it=items.find(i=>i.id===x.itemId);
       div.className='logitem ship';
       div.innerHTML=`
         <div class="stampbadge">出<span class="num" style="font-size:8px;">${x.date.slice(5).replace('-','/')}</span></div>
         <div class="body">
-          <div class="t1">${esc(nm)}</div>
+          <div class="t1">${esc(it?.name||'(削除済み)')}</div>
           <div class="t2">${x.dest?esc(x.dest)+' ・ ':''}${x.synced?'同期済み':''}</div>
-          <div class="t3 num" style="color:var(--alert); font-weight:800;">-${x.qty} kg</div>
+          <div class="t3 num" style="color:var(--alert); font-weight:800;">-${x.qty} ${it?.unit||'kg'}</div>
         </div>
         <button class="del" onclick="deleteShip('${x.id}')">削除</button>`;
     }
@@ -705,11 +800,12 @@ function renderReport(){
   lastReportRows=[];
   let html='<tr><th>品目</th><th>前月繰越</th><th>出来高＋</th><th>出荷−</th><th>ロス−</th><th>月末在庫</th></tr>';
   procs.forEach(it=>{
+    const u=it.unit||'kg';
     const carry=stockFor(it.id, pe);
     const mv=movedInMonth(it.id, ym);
     const end=r3(carry+mv.out-mv.ship-mv.loss);
-    lastReportRows.push({name:it.name, carry, out:mv.out, ship:mv.ship, loss:mv.loss, end});
-    html+=`<tr><td>${esc(it.name)}</td><td class="num">${carry}</td><td class="num">${mv.out}</td><td class="num">${mv.ship}</td><td class="num">${mv.loss}</td><td class="num" style="font-weight:800;">${end}</td></tr>`;
+    lastReportRows.push({name:it.name, unit:u, carry, out:mv.out, ship:mv.ship, loss:mv.loss, end});
+    html+=`<tr><td>${esc(it.name)}<span class="im">（${esc(u)}）</span></td><td class="num">${carry}</td><td class="num">${mv.out}</td><td class="num">${mv.ship}</td><td class="num">${mv.loss}</td><td class="num" style="font-weight:800;">${end}</td></tr>`;
   });
   table.innerHTML=html;
   document.getElementById('lossCount').textContent=losses.length;
@@ -717,9 +813,9 @@ function renderReport(){
 function downloadCsv(){
   const ym=document.getElementById('reportMonth').value;
   if(!ym || lastReportRows.length===0){ toast('先に対象月を選んでな'); return; }
-  let csv='\uFEFF品目,前月繰越,出来高,出荷,ロス,月末在庫\n';
+  let csv='\uFEFF品目,単位,前月繰越,出来高,出荷,ロス,月末在庫\n';
   lastReportRows.forEach(r=>{
-    csv+=`${r.name},${r.carry},${r.out},${r.ship},${r.loss},${r.end}\n`;
+    csv+=`${r.name},${r.unit||'kg'},${r.carry},${r.out},${r.ship},${r.loss},${r.end}\n`;
   });
   const blob=new Blob([csv], {type:'text/csv'});
   const url=URL.createObjectURL(blob);
@@ -764,6 +860,7 @@ document.querySelectorAll('#newItemKindChips .chip').forEach(b=>{
     document.querySelectorAll('#newItemKindChips .chip').forEach(x=>x.classList.remove('selected'));
     b.classList.add('selected');
     newItemKind=b.dataset.kind;
+    repaintKindChips();
   });
 });
 function renderSettings(){
@@ -773,7 +870,7 @@ function renderSettings(){
   items.forEach(it=>{
     const row=document.createElement('div'); row.className='itemrow';
     row.innerHTML=`
-      <div style="font-weight:700;">${esc(it.name)}<span class="tagkind ${it.kind==='raw'?'raw':'proc'}">${it.kind==='raw'?'原体':'加工品'}</span></div>
+      <div style="font-weight:700;">${esc(it.name)}<span class="tagkind ${it.kind==='raw'?'raw':'proc'}">${it.kind==='raw'?'原体':'加工品'}</span><span class="im" style="margin-left:6px;">（単位: ${esc(it.unit||'kg')}）</span></div>
       <button class="del" onclick="deleteItem('${it.id}')">削除</button>`;
     wrap.appendChild(row);
   });
@@ -783,9 +880,10 @@ function renderSettings(){
 document.getElementById('staffName').addEventListener('input', e=>{ saveStaffName(e.target.value); });
 function addItem(){
   const name=document.getElementById('newItemName').value.trim();
+  const unit=document.getElementById('newItemUnit').value;
   if(!name){ toast('品目名を入力してな'); return; }
   if(items.find(i=>i.name===name)){ toast('もう登録されてるで'); return; }
-  items.push({id:uid(), name, unit:'kg', kind:newItemKind});
+  items.push({id:uid(), name, unit, kind:newItemKind});
   saveItems();
   document.getElementById('newItemName').value='';
   toast(`「${name}」を${newItemKind==='raw'?'原体':'加工品'}として登録したで`);
@@ -814,21 +912,134 @@ function importFromNikuko(){
   renderSettings();
 }
 
+/* ---------- Excel/CSV取込 ---------- */
+let excelRows=null; /* 2次元配列(1行目=ヘッダー想定) */
+let excelDefaultKind='raw';
+let excelDefaultUnit='kg';
+document.querySelectorAll('#excelDefaultKindChips .chip').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('#excelDefaultKindChips .chip').forEach(x=>x.classList.remove('selected'));
+    b.classList.add('selected');
+    excelDefaultKind=b.dataset.kind;
+    updateExcelPreview();
+  });
+});
+document.querySelectorAll('#excelDefaultUnitChips .chip').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('#excelDefaultUnitChips .chip').forEach(x=>x.classList.remove('selected'));
+    b.classList.add('selected');
+    excelDefaultUnit=b.dataset.unit;
+    updateExcelPreview();
+  });
+});
+document.getElementById('excelNameCol').addEventListener('change', updateExcelPreview);
+document.getElementById('excelKindCol').addEventListener('change', ()=>{
+  const has = document.getElementById('excelKindCol').value!=='';
+  document.getElementById('excelKindValWrap').style.display = has ? 'block':'none';
+  updateExcelPreview();
+});
+document.getElementById('excelKindRawVal').addEventListener('input', updateExcelPreview);
+document.getElementById('excelUnitCol').addEventListener('change', ()=>{
+  const has = document.getElementById('excelUnitCol').value!=='';
+  document.getElementById('excelDefaultUnitWrap').style.display = has ? 'none':'block';
+  updateExcelPreview();
+});
+
+function onExcelSelected(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=(ev)=>{
+    try{
+      const data=new Uint8Array(ev.target.result);
+      const wb=XLSX.read(data, {type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      if(!rows || rows.length<2){ toast('データが読み取れへんかった（1行しかないみたい）'); return; }
+      excelRows=rows;
+      const header=rows[0];
+      const nameSel=document.getElementById('excelNameCol');
+      const kindSel=document.getElementById('excelKindCol');
+      const unitSel=document.getElementById('excelUnitCol');
+      nameSel.innerHTML = header.map((h,i)=>`<option value="${i}">${esc(String(h||'(列'+(i+1)+')'))}</option>`).join('');
+      kindSel.innerHTML = '<option value="">使わない（下の一括区分を使う）</option>' +
+        header.map((h,i)=>`<option value="${i}">${esc(String(h||'(列'+(i+1)+')'))}</option>`).join('');
+      unitSel.innerHTML = '<option value="">使わない（下のデフォルト単位を使う）</option>' +
+        header.map((h,i)=>`<option value="${i}">${esc(String(h||'(列'+(i+1)+')'))}</option>`).join('');
+      document.getElementById('excelKindValWrap').style.display='none';
+      document.getElementById('excelDefaultUnitWrap').style.display='block';
+      document.getElementById('excelMapArea').style.display='block';
+      updateExcelPreview();
+      toast(`${rows.length-1}行読み込んだで。品目名の列を確認してな`);
+    }catch(err){
+      toast('ファイルの読み込みに失敗したで。.xlsxか.csvか確認してな');
+    }
+    e.target.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+function updateExcelPreview(){
+  if(!excelRows) return;
+  const nameIdx=parseInt(document.getElementById('excelNameCol').value);
+  const dataRows=excelRows.slice(1).filter(r=> String(r[nameIdx]||'').trim()!=='');
+  const names=dataRows.slice(0,5).map(r=>String(r[nameIdx]).trim());
+  const kindIdx=document.getElementById('excelKindCol').value;
+  let kindNote = kindIdx==='' ? `区分は全部「${excelDefaultKind==='raw'?'原体':'加工品'}」として取り込むで` : '選んだ列の文字で原体/加工品を判定するで';
+  document.getElementById('excelPreview').textContent =
+    `${dataRows.length}件が対象（例: ${names.join('、')}${dataRows.length>5?' ...':''}）／${kindNote}`;
+}
+function cancelExcelImport(){
+  excelRows=null;
+  document.getElementById('excelMapArea').style.display='none';
+}
+function confirmExcelImport(){
+  if(!excelRows){ toast('先にファイルを選んでな'); return; }
+  const nameIdx=parseInt(document.getElementById('excelNameCol').value);
+  const kindColVal=document.getElementById('excelKindCol').value;
+  const kindIdx = kindColVal==='' ? null : parseInt(kindColVal);
+  const rawMatch = document.getElementById('excelKindRawVal').value.trim();
+  const unitColVal=document.getElementById('excelUnitCol').value;
+  const unitIdx = unitColVal==='' ? null : parseInt(unitColVal);
+  let added=0, dup=0, empty=0;
+  excelRows.slice(1).forEach(r=>{
+    const name=String(r[nameIdx]||'').trim();
+    if(!name){ empty++; return; }
+    if(items.find(i=>i.name===name)){ dup++; return; }
+    let kind=excelDefaultKind;
+    if(kindIdx!==null && rawMatch){
+      const cell=String(r[kindIdx]||'');
+      kind = cell.includes(rawMatch) ? 'raw' : 'proc';
+    }
+    let unit = excelDefaultUnit;
+    if(unitIdx!==null){
+      const cell=String(r[unitIdx]||'').trim();
+      if(cell) unit=cell;
+    }
+    items.push({id:uid(), name, unit, kind});
+    added++;
+  });
+  saveItems();
+  toast(`${added}件取り込んだで（重複${dup}件スキップ、空欄${empty}件無視）`);
+  cancelExcelImport();
+  renderSettings();
+}
+
 /* ---------- エクスポート（共通JSON） ---------- */
 function doExport(){
   const ub=batches.filter(b=>!b.synced), us=ships.filter(s=>!s.synced);
   if(ub.length+us.length===0){ toast('未同期の記録はないで'); return; }
   const records=[];
   ub.forEach(b=>{
-    const rawName=items.find(i=>i.id===b.inputItemId)?.name||'(削除済み)';
+    const rawItem=items.find(i=>i.id===b.inputItemId);
     records.push({
-      区分:'加工投入', 品目ID:b.inputItemId, 品目:rawName, 数量:b.inputQty, 単位:'kg', 日付:b.date,
-      出来高:(b.outputs||[]).map(o=>({品目ID:o.itemId, 品目:items.find(i=>i.id===o.itemId)?.name||'(削除済み)', 数量:o.qty})),
+      区分:'加工投入', 品目ID:b.inputItemId, 品目:rawItem?.name||'(削除済み)', 数量:b.inputQty, 単位:rawItem?.unit||'kg', 日付:b.date,
+      出来高:(b.outputs||[]).map(o=>{ const it=items.find(i=>i.id===o.itemId); return {品目ID:o.itemId, 品目:it?.name||'(削除済み)', 数量:o.qty, 単位:it?.unit||'kg'}; }),
       歩留まり:b.yield, 担当者:b.staff||''
     });
   });
   us.forEach(s=>{
-    records.push({区分:'加工品出荷', 品目ID:s.itemId, 品目:items.find(i=>i.id===s.itemId)?.name||'(削除済み)', 数量:s.qty, 単位:'kg', 日付:s.date, 出荷先:s.dest||''});
+    const it=items.find(i=>i.id===s.itemId);
+    records.push({区分:'加工品出荷', 品目ID:s.itemId, 品目:it?.name||'(削除済み)', 数量:s.qty, 単位:it?.unit||'kg', 日付:s.date, 出荷先:s.dest||''});
   });
   const payload={ app:'加工帳', 使用者:loadStaffName()||'(未設定)', エクスポート日時:new Date().toLocaleString('ja-JP'), 記録:records };
   const text=JSON.stringify(payload, null, 2);
@@ -914,6 +1125,7 @@ updateOnlineBadge();
 /* 初期表示 */
 document.getElementById('reportMonth').value = new Date().toISOString().slice(0,7);
 showScreen('screen-batch');
+repaintKindChips();
 </script>
 </body>
 </html>
