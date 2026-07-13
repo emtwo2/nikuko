@@ -255,29 +255,7 @@
     </div>
   </section>
 
-  <!-- 出荷 -->
-  <section class="screen" id="screen-ship">
-    <div class="section-title">加工品の出荷を記録</div>
-    <div class="card">
-      <label class="field">
-        <span class="lbl">品目（加工品）</span>
-        <select id="shipSelect" onchange="onShipSelectChange()"></select>
-      </label>
-      <label class="field">
-        <span class="lbl">数量 <span id="shipUnitLabel">(kg)</span>　（現在庫: <span id="shipCurrentQty" class="num">-</span>）</span>
-        <input type="number" inputmode="decimal" id="shipQty" placeholder="0">
-      </label>
-      <label class="field">
-        <span class="lbl">出荷先（任意）</span>
-        <input type="text" id="shipDest" placeholder="例）〇〇店">
-      </label>
-      <label class="field">
-        <span class="lbl">日付</span>
-        <input type="date" id="shipDate">
-      </label>
-      <button class="btn alert" onclick="submitShip()">出荷を記録する</button>
-    </div>
-  </section>
+  <!-- 加工品の出荷は「出荷帳」アプリに分離しました -->
 
   <!-- 在庫 -->
   <section class="screen" id="screen-stock">
@@ -449,7 +427,6 @@
 
 <nav class="tabbar">
   <button data-screen="screen-batch"><span class="dot"></span>加工</button>
-  <button data-screen="screen-ship"><span class="dot"></span>出荷</button>
   <button data-screen="screen-stock"><span class="dot"></span>在庫</button>
   <button data-screen="screen-report"><span class="dot"></span>月次</button>
   <button data-screen="screen-settings"><span class="dot"></span>設定</button>
@@ -459,7 +436,7 @@
 
 <script>
 /* ---------- バージョン情報 ---------- */
-const APP_VERSION = 'v3';
+const APP_VERSION = 'v4';
 const APP_VERSION_DATE = '2026-07-06';
 const APP_VERSION_NOTE = '初版。バッチ入力（投入原体＋複数出来高）・加工品在庫・歩留まり自動蓄積・月次出入表（ロス帳JSON取込＋CSV）・肉庫帳から品目取込。';
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -516,7 +493,6 @@ function loadStaffName(){ return localStorage.getItem(LS_STAFFNAME) || ''; }
 function saveStaffName(v){ localStorage.setItem(LS_STAFFNAME, v); }
 
 let selectedRaw = null;
-let selectedShipItem = null;
 let newItemKind = 'proc';
 /* outputs入力行: [{itemId, qty}] */
 let outputRows = [{itemId:'', qty:''}];
@@ -549,7 +525,6 @@ function showScreen(id){
   document.getElementById(id).classList.add('active');
   document.querySelectorAll('nav.tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.screen===id));
   if(id==='screen-batch'){ renderRawChips(); renderOutputRows(); }
-  if(id==='screen-ship') renderShipChips();
   if(id==='screen-stock') renderStock();
   if(id==='screen-history') renderHistory();
   if(id==='screen-report') renderReport();
@@ -600,7 +575,7 @@ function renderOutputRows(){
     inp.type='number'; inp.inputMode='decimal'; inp.value=row.qty;
     function refreshRowUnit(){
       const it=procs.find(p=>p.id===sel.value);
-      inp.placeholder = it ? it.unit : 'kg';
+      inp.placeholder = '0';
     }
     sel.onchange=e=>{ outputRows[idx].itemId=e.target.value; refreshRowUnit(); };
     div.appendChild(sel);
@@ -652,39 +627,10 @@ function submitBatch(){
 }
 
 /* ---------- 出荷 ---------- */
-function renderShipChips(){
-  const sel=document.getElementById('shipSelect');
-  const procs=procItems();
-  if(procs.length===0){ sel.innerHTML='<option value="">加工品が未登録や。「設定」から追加してな</option>'; document.getElementById('shipCurrentQty').textContent='-'; return; }
-  if(!procs.find(i=>i.id===selectedShipItem)) selectedShipItem=procs[0].id;
-  sel.innerHTML = procs.map(it=>`<option value="${it.id}"${it.id===selectedShipItem?' selected':''}>${esc(it.name)}</option>`).join('');
-  sel.value = selectedShipItem;
-  updateShipInfo();
-}
-function onShipSelectChange(){
-  selectedShipItem = document.getElementById('shipSelect').value;
-  updateShipInfo();
-}
-function updateShipInfo(){
-  const cur = items.find(i=>i.id===selectedShipItem);
-  const u = cur ? (cur.unit||'kg') : 'kg';
-  document.getElementById('shipUnitLabel').textContent = `(${u})`;
-  document.getElementById('shipCurrentQty').textContent = selectedShipItem ? stockFor(selectedShipItem)+u : '-';
-}
-document.getElementById('shipDate').value = todayStr();
-function submitShip(){
-  if(!selectedShipItem){ toast('品目を選んでな'); return; }
-  const qty=parseFloat(document.getElementById('shipQty').value);
-  if(!qty || qty<=0){ toast('数量を入力してな'); return; }
-  const dest=document.getElementById('shipDest').value.trim();
-  const date=document.getElementById('shipDate').value || todayStr();
-  ships.push({id:uid(), itemId:selectedShipItem, qty, dest, date, ts:Date.now(), synced:false});
-  saveShips();
-  document.getElementById('shipQty').value='';
-  const cur=items.find(i=>i.id===selectedShipItem);
-  toast(`${cur?.name||''} ${qty}${cur?.unit||'kg'} の出荷を記録したで`);
-  renderShipChips();
-}
+/* 加工品の出荷入力機能は「出荷帳」アプリに分離しました。
+   ships(kakocho_ships)データは在庫・月次計算のために引き続き読み込みますが、
+   このアプリからの新規出荷登録は行いません。 */
+
 
 /* ---------- 在庫・歩留まり ---------- */
 function renderStock(){
@@ -735,43 +681,27 @@ function renderStock(){
 /* ---------- 履歴 ---------- */
 function renderHistory(){
   const wrap=document.getElementById('historyList');
-  const all=[
-    ...batches.map(b=>({...b, _t:'batch'})),
-    ...ships.map(s=>({...s, _t:'ship'})),
-  ].sort((a,b)=>b.ts-a.ts);
+  const all=[...batches.map(b=>({...b, _t:'batch'}))].sort((a,b)=>b.ts-a.ts);
   if(all.length===0){ wrap.innerHTML='<div class="empty">まだ記録がないで</div>'; return; }
   wrap.innerHTML='';
   all.forEach(x=>{
     const div=document.createElement('div');
-    if(x._t==='batch'){
-      const rawItem=items.find(i=>i.id===x.inputItemId);
-      const rawName=rawItem?.name||'(削除済み)';
-      const rawUnit=rawItem?.unit||'kg';
-      const outsText=(x.outputs||[]).map(o=>{
-        const it=items.find(i=>i.id===o.itemId);
-        return `${esc(it?.name||'(削除済み)')} ${o.qty}${it?.unit||'kg'}`;
-      }).join(' ／ ');
-      div.className='logitem';
-      div.innerHTML=`
-        <div class="stampbadge">加<span class="num" style="font-size:8px;">${x.date.slice(5).replace('-','/')}</span></div>
-        <div class="body">
-          <div class="t1">${esc(rawName)} ${x.inputQty}${rawUnit} 投入</div>
-          <div class="t2 num">歩留まり ${Math.round(x.yield*1000)/10}% ・ ${esc(x.staff||'担当者未記入')}${x.synced?' ・ 同期済み':''}</div>
-          <div class="t3">→ ${outsText}</div>
-        </div>
-        <button class="del" onclick="deleteBatch('${x.id}')">削除</button>`;
-    } else {
-      const it=items.find(i=>i.id===x.itemId);
-      div.className='logitem ship';
-      div.innerHTML=`
-        <div class="stampbadge">出<span class="num" style="font-size:8px;">${x.date.slice(5).replace('-','/')}</span></div>
-        <div class="body">
-          <div class="t1">${esc(it?.name||'(削除済み)')}</div>
-          <div class="t2">${x.dest?esc(x.dest)+' ・ ':''}${x.synced?'同期済み':''}</div>
-          <div class="t3 num" style="color:var(--alert); font-weight:800;">-${x.qty} ${it?.unit||'kg'}</div>
-        </div>
-        <button class="del" onclick="deleteShip('${x.id}')">削除</button>`;
-    }
+    const rawItem=items.find(i=>i.id===x.inputItemId);
+    const rawName=rawItem?.name||'(削除済み)';
+    const rawUnit=rawItem?.unit||'kg';
+    const outsText=(x.outputs||[]).map(o=>{
+      const it=items.find(i=>i.id===o.itemId);
+      return `${esc(it?.name||'(削除済み)')} ${o.qty}${it?.unit||'kg'}`;
+    }).join(' ／ ');
+    div.className='logitem';
+    div.innerHTML=`
+      <div class="stampbadge">加<span class="num" style="font-size:8px;">${x.date.slice(5).replace('-','/')}</span></div>
+      <div class="body">
+        <div class="t1">${esc(rawName)} ${x.inputQty}${rawUnit} 投入</div>
+        <div class="t2 num">歩留まり ${Math.round(x.yield*1000)/10}% ・ ${esc(x.staff||'担当者未記入')}${x.synced?' ・ 同期済み':''}</div>
+        <div class="t3">→ ${outsText}</div>
+      </div>
+      <button class="del" onclick="deleteBatch('${x.id}')">削除</button>`;
     wrap.appendChild(div);
   });
 }
@@ -875,7 +805,7 @@ function renderSettings(){
     wrap.appendChild(row);
   });
   document.getElementById('unsyncedCount').textContent =
-    batches.filter(b=>!b.synced).length + ships.filter(s=>!s.synced).length;
+    batches.filter(b=>!b.synced).length;
 }
 document.getElementById('staffName').addEventListener('input', e=>{ saveStaffName(e.target.value); });
 function addItem(){
@@ -1026,8 +956,8 @@ function confirmExcelImport(){
 
 /* ---------- エクスポート（共通JSON） ---------- */
 function doExport(){
-  const ub=batches.filter(b=>!b.synced), us=ships.filter(s=>!s.synced);
-  if(ub.length+us.length===0){ toast('未同期の記録はないで'); return; }
+  const ub=batches.filter(b=>!b.synced);
+  if(ub.length===0){ toast('未同期の記録はないで'); return; }
   const records=[];
   ub.forEach(b=>{
     const rawItem=items.find(i=>i.id===b.inputItemId);
@@ -1036,10 +966,6 @@ function doExport(){
       出来高:(b.outputs||[]).map(o=>{ const it=items.find(i=>i.id===o.itemId); return {品目ID:o.itemId, 品目:it?.name||'(削除済み)', 数量:o.qty, 単位:it?.unit||'kg'}; }),
       歩留まり:b.yield, 担当者:b.staff||''
     });
-  });
-  us.forEach(s=>{
-    const it=items.find(i=>i.id===s.itemId);
-    records.push({区分:'加工品出荷', 品目ID:s.itemId, 品目:it?.name||'(削除済み)', 数量:s.qty, 単位:it?.unit||'kg', 日付:s.date, 出荷先:s.dest||''});
   });
   const payload={ app:'加工帳', 使用者:loadStaffName()||'(未設定)', エクスポート日時:new Date().toLocaleString('ja-JP'), 記録:records };
   const text=JSON.stringify(payload, null, 2);
@@ -1051,13 +977,12 @@ function doExport(){
     });
   } else { box.select(); toast('このテキストを選択してコピーしてな'); }
   document.getElementById('markSyncedBtn').disabled=false;
-  window._pend={b:ub.map(x=>x.id), s:us.map(x=>x.id)};
+  window._pend={b:ub.map(x=>x.id)};
 }
 function markSynced(){
   if(!window._pend){ toast('先にコピーしてな'); return; }
   batches=batches.map(b=> window._pend.b.includes(b.id)?{...b, synced:true}:b);
-  ships=ships.map(s=> window._pend.s.includes(s.id)?{...s, synced:true}:s);
-  saveBatches(); saveShips();
+  saveBatches();
   window._pend=null;
   document.getElementById('markSyncedBtn').disabled=true;
   document.getElementById('exportBox').value='';
@@ -1094,7 +1019,7 @@ function restoreFromFile(e){
       ships=Array.isArray(data.ships)?data.ships:[]; saveShips();
       losses=Array.isArray(data.losses)?data.losses:[]; saveLosses();
       if(typeof data.staffName==='string') saveStaffName(data.staffName);
-      selectedRaw=null; selectedShipItem=null;
+      selectedRaw=null;
       toast(`${when}時点のバックアップを復元したで`);
       renderSettings();
     }catch(err){ toast('ファイルの読み込みに失敗したで。JSON形式か確認してな'); }
