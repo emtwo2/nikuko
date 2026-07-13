@@ -225,6 +225,7 @@
   .hint{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; }
   .divider{ height:1px; background:var(--line); margin:18px 0; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -334,6 +335,39 @@
       <p class="hint">エクスポートする記録に、この名前が添えられるで。複数人で使う時に誰の記録か分かるようにするためのもの。</p>
     </div>
 
+    <div class="section-title">Excelから品目を取り込む</div>
+    <div class="card">
+      <p class="hint">SKUマスタなどのExcel(.xlsx)・CSVファイルをそのまま読み込んで、品目名の列を選ぶだけで一括登録できるで。保管場所や在庫状態の列があっても無視して品目名だけ拾うから、既存のファイルをそのまま使ってな。</p>
+      <div style="height:10px"></div>
+      <input type="file" id="excelFileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="onExcelSelected(event)">
+      <button class="btn ghost" onclick="document.getElementById('excelFileInput').click()">Excel/CSVファイルを選ぶ</button>
+
+      <div id="excelMapArea" style="display:none; margin-top:16px;">
+        <label class="field">
+          <span class="lbl">品目名が入っている列</span>
+          <select id="excelNameCol" onchange="updateExcelPreview()"></select>
+        </label>
+        <label class="field">
+          <span class="lbl">単位の列（任意）</span>
+          <select id="excelUnitCol" onchange="onExcelUnitColChange()">
+            <option value="">使わない（下のデフォルト単位を使う）</option>
+          </select>
+        </label>
+        <label class="field" id="excelDefaultUnitWrap">
+          <span class="lbl">単位列を使わない場合、この取り込み分は全部</span>
+          <div class="chipwrap" id="excelDefaultUnitChips">
+            <button type="button" class="chip selected" data-unit="kg">kg</button>
+            <button type="button" class="chip" data-unit="個">個</button>
+            <button type="button" class="chip" data-unit="パック">パック</button>
+          </div>
+        </label>
+        <p class="hint" id="excelPreview" style="margin-bottom:10px;"></p>
+        <button class="btn" onclick="confirmExcelImport()">この内容で取り込む</button>
+        <div style="height:8px"></div>
+        <button class="btn ghost" onclick="cancelExcelImport()" style="border-color:var(--ink-soft); color:var(--ink-soft);">キャンセル</button>
+      </div>
+    </div>
+
     <div class="section-title">品目マスタ</div>
     <div class="card">
       <div id="itemMasterList"></div>
@@ -433,9 +467,9 @@
 <script>
 /* ---------- バージョン情報 ---------- */
 /* 更新するたびにここを書き換える */
-const APP_VERSION = 'v9';
+const APP_VERSION = 'v10';
 const APP_VERSION_DATE = '2026-07-06';
-const APP_VERSION_NOTE = 'iOSでチップが反応しない不具合が解決しなかったため、品目・仕入先の選択をタップ式ボタンからネイティブのドロップダウン（select）に変更。OS標準の描画に任せることで根本的に回避。加工帳JSON取込で原体在庫を自動差引。';
+const APP_VERSION_NOTE = '品目・仕入先の選択をネイティブのドロップダウンに変更(iOS対策)。Excel/CSVから品目マスタを一括取込できる機能を追加。加工帳JSON取込で原体在庫を自動差引。';
 document.getElementById('appVersion').textContent = APP_VERSION;
 document.getElementById('appVersionFull').textContent = `${APP_VERSION}（${APP_VERSION_DATE}）`;
 document.getElementById('appVersionNote').textContent = APP_VERSION_NOTE;
@@ -849,6 +883,89 @@ function addItem(){
   document.getElementById('newItemName').value='';
   document.getElementById('newItemThreshold').value='';
   toast(`「${name}」を登録したで`);
+  renderSettings();
+}
+
+/* ---------- Excel/CSV取込 ---------- */
+let excelRows=null;
+let excelDefaultUnit='kg';
+document.querySelectorAll('#excelDefaultUnitChips .chip').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('#excelDefaultUnitChips .chip').forEach(x=>x.classList.remove('selected'));
+    b.classList.add('selected');
+    excelDefaultUnit=b.dataset.unit;
+    updateExcelPreview();
+  });
+});
+function onExcelUnitColChange(){
+  const has = document.getElementById('excelUnitCol').value!=='';
+  document.getElementById('excelDefaultUnitWrap').style.display = has ? 'none':'block';
+  updateExcelPreview();
+}
+function onExcelSelected(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=(ev)=>{
+    try{
+      const data=new Uint8Array(ev.target.result);
+      const wb=XLSX.read(data, {type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      if(!rows || rows.length<2){ toast('データが読み取れへんかった（1行しかないみたい）'); return; }
+      excelRows=rows;
+      const header=rows[0];
+      const nameSel=document.getElementById('excelNameCol');
+      const unitSel=document.getElementById('excelUnitCol');
+      nameSel.innerHTML = header.map((h,i)=>`<option value="${i}">${esc(String(h||'(列'+(i+1)+')'))}</option>`).join('');
+      unitSel.innerHTML = '<option value="">使わない（下のデフォルト単位を使う）</option>' +
+        header.map((h,i)=>`<option value="${i}">${esc(String(h||'(列'+(i+1)+')'))}</option>`).join('');
+      document.getElementById('excelDefaultUnitWrap').style.display='block';
+      document.getElementById('excelMapArea').style.display='block';
+      updateExcelPreview();
+      toast(`${rows.length-1}行読み込んだで。品目名の列を確認してな`);
+    }catch(err){
+      toast('ファイルの読み込みに失敗したで。.xlsxか.csvか確認してな');
+    }
+    e.target.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+function updateExcelPreview(){
+  if(!excelRows) return;
+  const nameIdx=parseInt(document.getElementById('excelNameCol').value);
+  const dataRows=excelRows.slice(1).filter(r=> String(r[nameIdx]||'').trim()!=='');
+  const names=dataRows.slice(0,5).map(r=>String(r[nameIdx]).trim());
+  const unitColVal=document.getElementById('excelUnitCol').value;
+  const unitNote = unitColVal==='' ? `単位は全部「${excelDefaultUnit}」として取り込むで` : '選んだ列の値をそのまま単位として使うで';
+  document.getElementById('excelPreview').textContent =
+    `${dataRows.length}件が対象（例: ${names.join('、')}${dataRows.length>5?' ...':''}）／${unitNote}`;
+}
+function cancelExcelImport(){
+  excelRows=null;
+  document.getElementById('excelMapArea').style.display='none';
+}
+function confirmExcelImport(){
+  if(!excelRows){ toast('先にファイルを選んでな'); return; }
+  const nameIdx=parseInt(document.getElementById('excelNameCol').value);
+  const unitColVal=document.getElementById('excelUnitCol').value;
+  const unitIdx = unitColVal==='' ? null : parseInt(unitColVal);
+  let added=0, dup=0, empty=0;
+  excelRows.slice(1).forEach(r=>{
+    const name=String(r[nameIdx]||'').trim();
+    if(!name){ empty++; return; }
+    if(items.find(i=>i.name===name)){ dup++; return; }
+    let unit = excelDefaultUnit;
+    if(unitIdx!==null){
+      const cell=String(r[unitIdx]||'').trim();
+      if(cell) unit=cell;
+    }
+    items.push({id:uid(), name, unit, threshold:0});
+    added++;
+  });
+  saveItems(items);
+  toast(`${added}件取り込んだで（重複${dup}件スキップ、空欄${empty}件無視）。アラート閾値は0で入ってるから、必要なら一覧から個別に設定してな`);
+  cancelExcelImport();
   renderSettings();
 }
 function deleteItem(id){
