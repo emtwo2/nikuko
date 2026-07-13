@@ -81,8 +81,8 @@
     padding:11px 16px; border-radius:20px; border:1.6px solid var(--line);
     background:#fff; font-size:15px; font-weight:600; color:var(--ink);
   }
-  .chip.selected{ background:var(--alert); border-color:var(--alert); color:#fff; }
-  .chip.selected.stampstyle{ background:var(--stamp); border-color:var(--stamp); }
+  .chip.selected{ background:#AA3A2E; border-color:#AA3A2E; color:#fff; }
+  .chip.selected.stampstyle{ background:#4B2E58; border-color:#4B2E58; }
 
   .btn{
     width:100%; padding:15px; border-radius:12px; border:none; font-size:16.5px;
@@ -209,7 +209,7 @@
     <div class="card">
       <label class="field">
         <span class="lbl">商品名</span>
-        <div class="chipwrap" id="productChips"></div>
+        <select id="productSelect" onchange="onProductSelectChange()"></select>
         <input type="text" id="productCustom" placeholder="商品名を入力" style="display:none; margin-top:10px;">
         <button type="button" class="btn stamp ghost small" id="productSaveBtn" style="display:none; margin-top:8px;" onclick="saveCustomProductToMaster()">この商品をリストに登録する</button>
       </label>
@@ -363,7 +363,7 @@
 
 <script>
 /* ---------- バージョン情報 ---------- */
-const APP_VERSION = 'v1';
+const APP_VERSION = 'v2';
 const APP_VERSION_DATE = '2026-07-01';
 const APP_VERSION_NOTE = '初版。商品名・数量(kg/パック/個)・写真・廃棄理由・担当者を記録できるロス報告アプリ';
 document.getElementById('appVersion').textContent = APP_VERSION;
@@ -428,29 +428,27 @@ function toast(msg){
 
 /* ---------- 商品チップ ---------- */
 function renderProductChips(){
-  const wrap=document.getElementById('productChips'); wrap.innerHTML='';
-  products.forEach(p=>{
-    const b=document.createElement('button');
-    b.type='button'; b.className='chip stampstyle'+(!productCustomMode && selectedProduct===p.name?' selected':'');
-    b.textContent=p.name;
-    b.onclick=()=>{
-      selectedProduct=p.name; productCustomMode=false;
-      document.getElementById('productCustom').style.display='none';
-      document.getElementById('productSaveBtn').style.display='none';
-      renderProductChips();
-    };
-    wrap.appendChild(b);
-  });
-  const custom=document.createElement('button');
-  custom.type='button'; custom.className='chip stampstyle'+(productCustomMode?' selected':'');
-  custom.textContent='＋ 自由入力';
-  custom.onclick=()=>{
+  const sel=document.getElementById('productSelect');
+  const opts = ['<option value="">選んでな</option>']
+    .concat(products.map(p=>`<option value="${esc(p.name)}"${!productCustomMode && selectedProduct===p.name?' selected':''}>${esc(p.name)}</option>`))
+    .concat(['<option value="__custom__"'+(productCustomMode?' selected':'')+'>＋ 自由入力</option>']);
+  sel.innerHTML = opts.join('');
+  sel.value = productCustomMode ? '__custom__' : (selectedProduct || '');
+  document.getElementById('productCustom').style.display = productCustomMode ? 'block' : 'none';
+  updateProductSaveBtn();
+}
+function onProductSelectChange(){
+  const v=document.getElementById('productSelect').value;
+  if(v==='__custom__'){
     productCustomMode=true; selectedProduct=null;
     document.getElementById('productCustom').style.display='block';
     document.getElementById('productCustom').focus();
-    renderProductChips(); updateProductSaveBtn();
-  };
-  wrap.appendChild(custom);
+  } else {
+    productCustomMode=false; selectedProduct = v || null;
+    document.getElementById('productCustom').style.display='none';
+    document.getElementById('productSaveBtn').style.display='none';
+  }
+  updateProductSaveBtn();
 }
 document.getElementById('productCustom').addEventListener('input', updateProductSaveBtn);
 function updateProductSaveBtn(){
@@ -474,6 +472,7 @@ document.querySelectorAll('#unitChips .chip').forEach(b=>{
     b.classList.add('selected');
     selectedUnit=b.dataset.unit;
     document.getElementById('unitLabel').textContent=selectedUnit;
+    repaintGroup('#unitChips .chip', '#4B2E58');
   });
 });
 
@@ -483,6 +482,7 @@ document.querySelectorAll('#reasonChips .chip').forEach(b=>{
     document.querySelectorAll('#reasonChips .chip').forEach(x=>x.classList.remove('selected'));
     b.classList.add('selected');
     selectedReason=b.dataset.reason;
+    repaintGroup('#reasonChips .chip', '#AA3A2E');
     reasonCustomMode = (selectedReason==='その他');
     document.getElementById('reasonCustom').style.display = reasonCustomMode ? 'block':'none';
     if(reasonCustomMode) document.getElementById('reasonCustom').focus();
@@ -734,6 +734,21 @@ function resetAll(){
 
 /* ---------- ユーティリティ ---------- */
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+/* iOS対策: チップの選択色をインラインで直接当てる */
+function paintChip(el, on, color){
+  color=color||'#4B2E58';
+  if(on){ el.style.background=color; el.style.borderColor=color; el.style.color='#fff'; }
+  else { el.style.background='#fff'; el.style.borderColor='#CBC6BA'; el.style.color='#211F1C'; }
+  forceRepaint(el);
+}
+function forceRepaint(el){
+  void el.offsetHeight;
+  el.style.webkitTransform='translateZ(0)';
+  requestAnimationFrame(()=>{ el.style.webkitTransform=''; void el.offsetHeight; });
+}
+function repaintGroup(sel, color){
+  document.querySelectorAll(sel).forEach(x=>paintChip(x, x.classList.contains('selected'), color));
+}
 function updateOnlineBadge(){
   const b=document.getElementById('offlineBadge');
   if(navigator.onLine){ b.textContent='オンライン'; b.className='on'; }
@@ -748,6 +763,8 @@ document.getElementById('repStaff').value = loadStaffName();
 /* 初期表示 */
 showScreen('screen-report');
 refreshBadges();
+repaintGroup('#unitChips .chip', '#4B2E58');
+repaintGroup('#reasonChips .chip', '#AA3A2E');
 </script>
 </body>
 </html>
