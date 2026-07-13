@@ -232,15 +232,6 @@
         <input type="number" inputmode="decimal" id="outQty" placeholder="0">
       </label>
       <label class="field">
-        <span class="lbl">理由</span>
-        <div class="chipwrap" id="outReasonChips">
-          <button type="button" class="chip selected" data-reason="販売">販売</button>
-          <button type="button" class="chip" data-reason="使用">使用</button>
-          <button type="button" class="chip" data-reason="廃棄">廃棄</button>
-          <button type="button" class="chip" data-reason="その他">その他</button>
-        </div>
-      </label>
-      <label class="field">
         <span class="lbl">日付</span>
         <input type="date" id="outDate">
       </label>
@@ -397,9 +388,9 @@
 
 <script>
 /* ---------- バージョン情報 ---------- */
-const APP_VERSION = 'v4';
+const APP_VERSION = 'v5';
 const APP_VERSION_DATE = '2026-07-10';
-const APP_VERSION_NOTE = '「手書き集計を取り込む」機能を追加。Claudeが手書き写真を読み取って出したJSONを貼り付けると、出庫記録として一括登録される。';
+const APP_VERSION_NOTE = '出荷・使用の「理由」選択を削除し、常に「出荷」として記録するよう簡略化。';
 document.getElementById('appVersion').textContent = APP_VERSION;
 document.getElementById('appVersionFull').textContent = `${APP_VERSION}（${APP_VERSION_DATE}）`;
 document.getElementById('appVersionNote').textContent = APP_VERSION_NOTE;
@@ -430,7 +421,7 @@ if(!localStorage.getItem(LS_ITEMS)) saveItems(items);
 
 let selectedInItem = null;
 let selectedOutItem = null;
-let selectedOutReason = '販売';
+let selectedOutReason = '出荷'; /* 理由選択は廃止し固定値にした */
 
 /* ---------- 在庫計算 ---------- */
 function stockFor(itemId){
@@ -529,13 +520,6 @@ function updateOutInfo(){
   const st = cur ? stockFor(cur.id) : {qty:0};
   document.getElementById('outCurrentQty').textContent = cur ? `${st.qty} ${cur.unit}` : '-';
 }
-document.querySelectorAll('#outReasonChips .chip').forEach(b=>{
-  b.addEventListener('click', ()=>{
-    document.querySelectorAll('#outReasonChips .chip').forEach(x=>x.classList.remove('selected'));
-    b.classList.add('selected');
-    selectedOutReason=b.dataset.reason;
-  });
-});
 document.getElementById('outDate').value = todayStr();
 
 function submitOut(){
