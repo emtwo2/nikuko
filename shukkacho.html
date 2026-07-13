@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="出荷帳">
+<meta name="mobile-web-app-capable" content="yes">
+<title>出荷帳 - 加工品 出荷管理</title>
+<style>
+  :root{
+    --paper:#EFEDE7; --paper2:#E6E2D8; --card:#FBFAF7;
+    --ink:#211F1C; --ink-soft:#6b665c; --line:#CBC6BA;
+    --stamp:#1F6E71; --stamp-soft:#DFEBEB; --stamp-deep:#154C4E;
+    --alert:#AA3A2E; --alert-soft:#F6E1DD;
+    --good:#3F6B4A; --good-soft:#E4EEE6;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; overflow-x:hidden; width:100%;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased; padding-bottom:env(safe-area-inset-bottom);
+    overscroll-behavior:none;
+  }
+  .num{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; font-variant-numeric:tabular-nums;}
+
+  header.app{
+    padding:calc(env(safe-area-inset-top) + 14px) 20px 14px;
+    background:var(--paper); border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:10;
+    display:flex; align-items:baseline; justify-content:space-between;
+  }
+  header.app .brand{display:flex; align-items:baseline; gap:10px;}
+  header.app h1{ font-size:22px; margin:0; font-weight:800; letter-spacing:.02em; }
+  header.app .stamp-mark{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:22px; height:22px; border-radius:50%;
+    border:1.6px solid var(--stamp); color:var(--stamp);
+    font-size:11px; font-weight:800; transform:rotate(-8deg);
+  }
+  header.app .sub{font-size:11px; color:var(--ink-soft);}
+  #offlineBadge{
+    font-size:10.5px; padding:3px 9px; border-radius:20px; font-weight:700;
+    border:1px solid var(--line); color:var(--ink-soft); background:var(--card);
+  }
+  #offlineBadge.off{ color:var(--alert); border-color:var(--alert); background:var(--alert-soft); }
+  #offlineBadge.on{ color:var(--good); border-color:var(--good); background:var(--good-soft); }
+
+  main{ padding:16px 16px 100px; max-width:640px; margin:0 auto; }
+  .screen{ display:none; animation:fade .18s ease; }
+  .screen.active{ display:block; }
+  @keyframes fade{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;} }
+
+  .section-title{
+    font-size:12px; font-weight:800; letter-spacing:.12em; color:var(--stamp);
+    text-transform:uppercase; margin:22px 0 10px;
+  }
+  .section-title:first-child{ margin-top:2px; }
+
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px; margin-bottom:12px;
+  }
+
+  label.field{ display:block; margin-bottom:14px; }
+  label.field .lbl{ display:block; font-size:12.5px; color:var(--ink-soft); margin-bottom:6px; font-weight:600; }
+  select,input[type=text],input[type=number],input[type=date],textarea{
+    width:100%; font-size:17px; padding:12px 12px; border-radius:10px;
+    border:1.4px solid var(--line); background:#fff; color:var(--ink); font-family:inherit;
+  }
+  input[type=date]{ -webkit-appearance:none; appearance:none; max-width:100%; min-width:0; }
+  select:focus,input:focus,textarea:focus{ outline:2.5px solid var(--stamp); outline-offset:1px; border-color:var(--stamp); }
+  input[type=number]{ font-family:ui-monospace,"SF Mono",monospace; font-weight:700; }
+
+  .btn{
+    width:100%; padding:15px; border-radius:12px; border:none; font-size:16.5px;
+    font-weight:800; letter-spacing:.02em; color:#fff; background:var(--stamp);
+  }
+  .btn:active{ background:var(--stamp-deep); }
+  .btn.ghost{ background:transparent; color:var(--stamp); border:1.6px solid var(--stamp); font-weight:700; }
+  .btn.alert{ background:var(--alert); }
+  .btn.alert.ghost{ background:transparent; color:var(--alert); border-color:var(--alert); }
+  .btn:disabled{ background:var(--line); color:#8a8578; }
+
+  .stocklist{ display:flex; flex-direction:column; gap:10px; }
+  .stockrow{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px;
+  }
+  .stockrow.low{ border-color:var(--alert); background:var(--alert-soft); }
+  .stockrow .name{ font-weight:800; font-size:16px; }
+  .stockrow .qty{ text-align:right; }
+  .stockrow .qty .n{ font-size:19px; font-weight:800; }
+  .stockrow .qty .u{ font-size:12px; color:var(--ink-soft); }
+  .taglow{
+    display:inline-block; font-size:10.5px; font-weight:800; color:var(--alert);
+    border:1px solid var(--alert); border-radius:20px; padding:2px 8px; margin-top:4px;
+  }
+
+  .logitem{ display:flex; gap:12px; padding:12px 4px; border-bottom:1px solid var(--line); }
+  .logitem:last-child{ border-bottom:none; }
+  .stampbadge{
+    flex:none; width:44px; height:44px; border-radius:50%;
+    border:1.8px solid var(--alert); color:var(--alert); background:var(--alert-soft);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-size:9.5px; font-weight:800; transform:rotate(5deg); line-height:1.1;
+  }
+  .logitem .body{ flex:1; min-width:0; }
+  .logitem .t1{ font-weight:700; font-size:15px; }
+  .logitem .t2{ font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
+  .logitem .t3{ font-size:14px; font-weight:800; margin-top:4px; color:var(--alert); }
+  .logitem .del{ flex:none; background:none; border:none; color:var(--ink-soft); font-size:12px; padding:6px; }
+
+  .empty{ text-align:center; color:var(--ink-soft); font-size:13.5px; padding:30px 10px; }
+
+  nav.tabbar{
+    position:fixed; bottom:0; left:0; right:0; z-index:20;
+    background:var(--card); border-top:1px solid var(--line);
+    padding:8px 6px calc(env(safe-area-inset-bottom) + 6px);
+    display:flex; justify-content:space-around;
+  }
+  nav.tabbar button{
+    background:none; border:none; flex:1; padding:6px 2px;
+    font-size:12px; font-weight:700; color:var(--ink-soft);
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+  }
+  nav.tabbar button .dot{ width:6px; height:6px; border-radius:50%; background:transparent; }
+  nav.tabbar button.active{ color:var(--stamp); }
+  nav.tabbar button.active .dot{ background:var(--stamp); }
+
+  .toast{
+    position:fixed; left:50%; bottom:90px; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:#fff; padding:12px 20px; border-radius:30px;
+    font-size:14px; font-weight:600; opacity:0; pointer-events:none; z-index:50;
+    transition:all .25s ease; max-width:85%; text-align:center;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  textarea.exportbox{
+    width:100%; height:180px; font-family:ui-monospace,"SF Mono",monospace; font-size:11.5px;
+    background:#fff; border:1.4px solid var(--line); border-radius:10px; padding:10px; resize:vertical;
+  }
+  .hint{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; }
+  .divider{ height:1px; background:var(--line); margin:18px 0; }
+</style>
+</head>
+<body>
+
+<header class="app">
+  <div class="brand">
+    <span class="stamp-mark">出</span>
+    <div>
+      <h1>出荷帳</h1>
+      <div class="sub">加工品 出荷管理 ・ <span id="appVersion" class="num"></span></div>
+    </div>
+  </div>
+  <span id="offlineBadge">-</span>
+</header>
+
+<main>
+
+  <!-- 出荷 -->
+  <section class="screen" id="screen-ship">
+    <div class="section-title">加工品の出荷を記録</div>
+    <div class="card">
+      <label class="field">
+        <span class="lbl">品目（加工帳の加工品マスタから）</span>
+        <select id="shipSelect" onchange="onShipSelectChange()"></select>
+      </label>
+      <label class="field">
+        <span class="lbl">数量 <span id="shipUnitLabel">(kg)</span>　（現在庫: <span id="shipCurrentQty" class="num">-</span>）</span>
+        <input type="number" inputmode="decimal" id="shipQty" placeholder="0">
+      </label>
+      <label class="field">
+        <span class="lbl">出荷先（任意）</span>
+        <input type="text" id="shipDest" placeholder="例）〇〇店">
+      </label>
+      <label class="field">
+        <span class="lbl">日付</span>
+        <input type="date" id="shipDate">
+      </label>
+      <button class="btn alert" onclick="submitShip()">出荷を記録する</button>
+      <p class="hint" style="margin-top:12px;">品目リストは加工帳の品目マスタ（加工品）をそのまま使ってるで。品目の追加・編集は加工帳の設定タブでやってな。</p>
+    </div>
+  </section>
+
+  <!-- 在庫 -->
+  <section class="screen" id="screen-stock">
+    <div class="section-title">加工品の現在庫</div>
+    <div class="card">
+      <p class="hint">加工帳のバッチ記録（出来高）とこのアプリの出荷記録から計算してるで。</p>
+    </div>
+    <div class="stocklist" id="stockList"></div>
+  </section>
+
+  <!-- 履歴 -->
+  <section class="screen" id="screen-history">
+    <div class="section-title">出荷履歴</div>
+    <div class="card" style="padding:6px 14px;">
+      <div id="historyList"></div>
+    </div>
+  </section>
+
+  <!-- 設定 -->
+  <section class="screen" id="screen-settings">
+    <div class="section-title">この端末の担当者</div>
+    <div class="card">
+      <label class="field">
+        <span class="lbl">担当者名</span>
+        <input type="text" id="staffName" placeholder="例）田中">
+      </label>
+    </div>
+
+    <div class="section-title">エクスポート（出荷記録）</div>
+    <div class="card">
+      <p class="hint">未同期の出荷記録をコピーするで。LINE等で送ってもらったら、Claudeとのチャットで集計に使うで。</p>
+      <p style="margin:10px 0 14px;"><span class="num" id="unsyncedCount" style="font-weight:800; font-size:18px;">0</span> 件の未同期記録があります</p>
+      <button class="btn" onclick="doExport()">未同期の記録をコピー</button>
+      <div style="height:10px"></div>
+      <textarea class="exportbox" id="exportBox" readonly></textarea>
+      <div style="height:10px"></div>
+      <button class="btn ghost" id="markSyncedBtn" onclick="markSynced()" disabled>↑ コピーした内容を同期済みにする</button>
+    </div>
+
+    <div class="section-title">バックアップ・復元（出荷記録のみ）</div>
+    <div class="card">
+      <p class="hint">このバックアップには出荷記録だけが入ってるで。品目マスタやバッチ記録は加工帳側のバックアップを使ってな。</p>
+      <div style="height:10px"></div>
+      <button class="btn" onclick="downloadBackup()">出荷記録をバックアップ（ファイル保存）</button>
+      <div class="divider"></div>
+      <input type="file" id="restoreFileInput" accept="application/json" style="display:none;" onchange="restoreFromFile(event)">
+      <button class="btn ghost" onclick="document.getElementById('restoreFileInput').click()">バックアップから復元する</button>
+    </div>
+
+    <div class="section-title">データ管理</div>
+    <div class="card">
+      <p class="hint">ここで削除できるのは出荷記録のみ。品目マスタやバッチ記録は消えへん（加工帳側で管理されてるため）。</p>
+      <div style="height:10px"></div>
+      <button class="btn alert" onclick="resetAll()">出荷記録を全部削除する</button>
+    </div>
+
+    <div class="section-title">バージョン情報</div>
+    <div class="card">
+      <p class="hint"><span class="num" id="appVersionFull" style="font-weight:800; font-size:15px; color:var(--ink);"></span></p>
+      <p class="hint" style="margin-top:6px;" id="appVersionNote"></p>
+    </div>
+  </section>
+
+</main>
+
+<nav class="tabbar">
+  <button data-screen="screen-ship"><span class="dot"></span>出荷</button>
+  <button data-screen="screen-stock"><span class="dot"></span>在庫</button>
+  <button data-screen="screen-history"><span class="dot"></span>履歴</button>
+  <button data-screen="screen-settings"><span class="dot"></span>設定</button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- バージョン情報 ---------- */
+const APP_VERSION = 'v1';
+const APP_VERSION_DATE = '2026-07-13';
+const APP_VERSION_NOTE = '初版。加工帳から出荷機能を分離。品目マスタ・バッチ記録は加工帳(kakocho_items / kakocho_batches)を読み込み専用で参照し、出荷記録(kakocho_ships)はこのアプリが担当する。';
+document.getElementById('appVersion').textContent = APP_VERSION;
+document.getElementById('appVersionFull').textContent = `${APP_VERSION}（${APP_VERSION_DATE}）`;
+document.getElementById('appVersionNote').textContent = APP_VERSION_NOTE;
+
+/* ---------- ユーティリティ ---------- */
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function r3(n){ return Math.round(n*1000)/1000; }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function loadJson(k, fb){ try{ return JSON.parse(localStorage.getItem(k)) ?? fb; }catch(e){ return fb; } }
+function saveJson(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
+
+/* ---------- データ層 ----------
+   items / batches は加工帳が所有。ここでは読み込み専用。
+   ships は共有ストレージキー(kakocho_ships)にこのアプリが書き込む。 */
+const LS_ITEMS='kakocho_items', LS_BATCHES='kakocho_batches', LS_SHIPS='kakocho_ships', LS_LOSSES='kakocho_losses';
+const LS_STAFFNAME='shukkacho_staffname';
+
+function loadItems(){ return (loadJson(LS_ITEMS, []) || []).filter(i=>i.kind!=='raw'); }
+function loadBatches(){ return loadJson(LS_BATCHES, []) || []; }
+function loadShips(){ return loadJson(LS_SHIPS, []) || []; }
+function saveShips(v){ saveJson(LS_SHIPS, v); }
+function loadLosses(){ return loadJson(LS_LOSSES, []) || []; }
+function loadStaffName(){ return localStorage.getItem(LS_STAFFNAME) || ''; }
+function saveStaffName(v){ localStorage.setItem(LS_STAFFNAME, v); }
+
+let items = loadItems();
+let batches = loadBatches();
+let ships = loadShips();
+let losses = loadLosses();
+let selectedShipItem = null;
+
+function refreshDataFromSharedStore(){
+  items = loadItems();
+  batches = loadBatches();
+  ships = loadShips();
+  losses = loadLosses();
+}
+
+/* ---------- 在庫計算（加工帳と同じロジック） ---------- */
+function stockFor(itemId){
+  let q=0;
+  batches.forEach(b=>{ (b.outputs||[]).forEach(o=>{ if(o.itemId===itemId) q+=o.qty; }); });
+  ships.forEach(s=>{ if(s.itemId===itemId) q-=s.qty; });
+  losses.forEach(l=>{ if(l.itemId===itemId) q-=l.qty; });
+  return r3(q);
+}
+
+/* ---------- 画面切替 ---------- */
+function showScreen(id){
+  refreshDataFromSharedStore(); /* 加工帳側の更新を毎回拾う */
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('nav.tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.screen===id));
+  if(id==='screen-ship') renderShipSelect();
+  if(id==='screen-stock') renderStock();
+  if(id==='screen-history') renderHistory();
+  if(id==='screen-settings') renderSettings();
+}
+document.querySelectorAll('nav.tabbar button').forEach(b=>{
+  b.addEventListener('click', ()=> showScreen(b.dataset.screen));
+});
+
+let toastTimer=null;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'), 2000);
+}
+
+/* ---------- 出荷タブ ---------- */
+function renderShipSelect(){
+  const sel=document.getElementById('shipSelect');
+  if(items.length===0){
+    sel.innerHTML='<option value="">加工帳に加工品が未登録や。先に加工帳の設定タブで登録してな</option>';
+    document.getElementById('shipCurrentQty').textContent='-';
+    return;
+  }
+  if(!items.find(i=>i.id===selectedShipItem)) selectedShipItem=items[0].id;
+  sel.innerHTML = items.map(it=>`<option value="${it.id}"${it.id===selectedShipItem?' selected':''}>${esc(it.name)}</option>`).join('');
+  sel.value = selectedShipItem;
+  updateShipInfo();
+}
+function onShipSelectChange(){
+  selectedShipItem = document.getElementById('shipSelect').value;
+  updateShipInfo();
+}
+function updateShipInfo(){
+  const cur = items.find(i=>i.id===selectedShipItem);
+  const u = cur ? (cur.unit||'kg') : 'kg';
+  document.getElementById('shipUnitLabel').textContent = `(${u})`;
+  document.getElementById('shipCurrentQty').textContent = selectedShipItem ? stockFor(selectedShipItem)+u : '-';
+}
+document.getElementById('shipDate').value = todayStr();
+
+function submitShip(){
+  if(!selectedShipItem || items.length===0){ toast('品目を選んでな'); return; }
+  const qty=parseFloat(document.getElementById('shipQty').value);
+  if(!qty || qty<=0){ toast('数量を入力してな'); return; }
+  const dest=document.getElementById('shipDest').value.trim();
+  const date=document.getElementById('shipDate').value || todayStr();
+  refreshDataFromSharedStore();
+  ships.push({id:uid(), itemId:selectedShipItem, qty, dest, date, ts:Date.now(), synced:false});
+  saveShips(ships);
+  document.getElementById('shipQty').value='';
+  const cur=items.find(i=>i.id===selectedShipItem);
+  toast(`${cur?.name||''} ${qty}${cur?.unit||'kg'} の出荷を記録したで`);
+  updateShipInfo();
+}
+
+/* ---------- 在庫タブ ---------- */
+function renderStock(){
+  const list=document.getElementById('stockList'); list.innerHTML='';
+  if(items.length===0){ list.innerHTML='<div class="empty">加工帳に加工品が未登録やで</div>'; return; }
+  items.forEach(it=>{
+    const q=stockFor(it.id);
+    const row=document.createElement('div');
+    row.className='stockrow'+(q<0?' low':'');
+    row.innerHTML=`
+      <div>
+        <div class="name">${esc(it.name)}</div>
+        ${q<0?'<span class="taglow">マイナス在庫（記録もれの可能性）</span>':''}
+      </div>
+      <div class="qty"><div class="n num">${q}</div><div class="u">${esc(it.unit||'kg')}</div></div>`;
+    list.appendChild(row);
+  });
+}
+
+/* ---------- 履歴タブ ---------- */
+function renderHistory(){
+  const wrap=document.getElementById('historyList');
+  const sorted=[...ships].sort((a,b)=>b.ts-a.ts);
+  if(sorted.length===0){ wrap.innerHTML='<div class="empty">まだ出荷記録がないで</div>'; return; }
+  wrap.innerHTML='';
+  sorted.forEach(s=>{
+    const it=items.find(i=>i.id===s.itemId);
+    const div=document.createElement('div'); div.className='logitem';
+    div.innerHTML=`
+      <div class="stampbadge">出<span class="num" style="font-size:8px;">${s.date.slice(5).replace('-','/')}</span></div>
+      <div class="body">
+        <div class="t1">${esc(it?.name||'(削除済み)')}</div>
+        <div class="t2">${s.dest?esc(s.dest)+' ・ ':''}${s.synced?'同期済み':''}</div>
+        <div class="t3 num">-${s.qty} ${esc(it?.unit||'kg')}</div>
+      </div>
+      <button class="del" onclick="deleteShip('${s.id}')">削除</button>`;
+    wrap.appendChild(div);
+  });
+}
+function deleteShip(id){
+  if(!confirm('この出荷記録を削除する？')) return;
+  refreshDataFromSharedStore();
+  ships = ships.filter(s=>s.id!==id);
+  saveShips(ships);
+  renderHistory();
+  refreshBadges();
+}
+
+/* ---------- 設定タブ ---------- */
+function renderSettings(){
+  document.getElementById('staffName').value = loadStaffName();
+  refreshBadges();
+}
+document.getElementById('staffName').addEventListener('input', e=>{ saveStaffName(e.target.value); });
+function refreshBadges(){
+  document.getElementById('unsyncedCount').textContent = ships.filter(s=>!s.synced).length;
+}
+
+/* ---------- エクスポート ---------- */
+function doExport(){
+  refreshDataFromSharedStore();
+  const unsynced = ships.filter(s=>!s.synced);
+  if(unsynced.length===0){ toast('未同期の記録はないで'); return; }
+  const records = unsynced.map(s=>{
+    const it=items.find(i=>i.id===s.itemId);
+    return { 区分:'加工品出荷', 品目ID:s.itemId, 品目:it?.name||'(削除済み)', 数量:s.qty, 単位:it?.unit||'kg', 日付:s.date, 出荷先:s.dest||'' };
+  });
+  const payload = { app:'出荷帳', 使用者:loadStaffName()||'(未設定)', エクスポート日時:new Date().toLocaleString('ja-JP'), 記録:records };
+  const text = JSON.stringify(payload, null, 2);
+  const box = document.getElementById('exportBox');
+  box.value = text;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>toast('コピーしたで。LINE等で送るか、Claudeのチャットに貼り付けてな')).catch(()=>{
+      box.select(); toast('自動コピーできんかった。手動で選択してコピーしてな');
+    });
+  } else { box.select(); toast('このテキストを選択してコピーしてな'); }
+  document.getElementById('markSyncedBtn').disabled=false;
+  window._pendingSyncIds = unsynced.map(s=>s.id);
+}
+function markSynced(){
+  if(!window._pendingSyncIds){ toast('先にコピーしてな'); return; }
+  refreshDataFromSharedStore();
+  ships = ships.map(s=> window._pendingSyncIds.includes(s.id) ? {...s, synced:true} : s);
+  saveShips(ships);
+  window._pendingSyncIds=null;
+  document.getElementById('markSyncedBtn').disabled=true;
+  document.getElementById('exportBox').value='';
+  toast('同期済みにしたで');
+  refreshBadges();
+  renderHistory();
+}
+
+/* ---------- バックアップ・復元(出荷記録のみ) ---------- */
+function downloadBackup(){
+  refreshDataFromSharedStore();
+  const payload = { app:'出荷帳', version:1, exportedAt:new Date().toISOString(), ships, staffName:loadStaffName() };
+  const text = JSON.stringify(payload, null, 2);
+  const blob = new Blob([text], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `出荷帳バックアップ_${todayStr()}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  toast('バックアップファイルを保存したで');
+}
+function restoreFromFile(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const data = JSON.parse(reader.result);
+      if(!Array.isArray(data.ships)){
+        toast('このファイルは出荷帳のバックアップやなさそうやで'); e.target.value=''; return;
+      }
+      const when = data.exportedAt ? data.exportedAt.slice(0,10) : '日付不明';
+      if(!confirm(`このバックアップ（${when}時点）で今の出荷記録を上書きする？元に戻せへんで。`)){ e.target.value=''; return; }
+      ships = data.ships; saveShips(ships);
+      if(typeof data.staffName==='string') saveStaffName(data.staffName);
+      toast(`${when}時点のバックアップを復元したで`);
+      renderSettings(); renderStock(); renderHistory();
+    }catch(err){ toast('ファイルの読み込みに失敗したで。JSON形式か確認してな'); }
+    e.target.value='';
+  };
+  reader.readAsText(file);
+}
+function resetAll(){
+  if(!confirm('本当に出荷記録を全部削除する？元に戻せへんで。')) return;
+  if(!confirm('もう一度確認：出荷記録がすべて消えるで（品目マスタ・バッチ記録は加工帳側に残る）。ええか？')) return;
+  refreshDataFromSharedStore();
+  ships=[]; saveShips(ships);
+  toast('出荷記録を全部削除したで');
+  renderSettings(); renderStock(); renderHistory();
+}
+
+/* ---------- オンライン表示 ---------- */
+function updateOnlineBadge(){
+  const b=document.getElementById('offlineBadge');
+  if(navigator.onLine){ b.textContent='オンライン'; b.className='on'; }
+  else{ b.textContent='オフライン（データは端末内に保存中）'; b.className='off'; }
+}
+window.addEventListener('online', updateOnlineBadge);
+window.addEventListener('offline', updateOnlineBadge);
+updateOnlineBadge();
+
+/* 初期表示 */
+showScreen('screen-ship');
+</script>
+</body>
+</html>
