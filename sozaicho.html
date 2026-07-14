@@ -181,6 +181,28 @@
   }
   .hint{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; }
   .divider{ height:1px; background:var(--line); margin:18px 0; }
+
+  /* ---------- 記入用シート印刷 ---------- */
+  #printArea{ display:none; }
+  @media print{
+    @page{ size: A4 portrait; margin: 12mm; }
+    body *{ visibility:hidden; }
+    #printArea, #printArea *{ visibility:visible; }
+    #printArea{ display:block; position:absolute; top:0; left:0; width:100%; }
+    .printtitle{ font-size:15px; font-weight:800; margin:0 0 4px; color:#000; }
+    .printsub{ font-size:10px; color:#333; margin:0 0 4px; }
+    .printhead{ display:flex; gap:16px; font-size:10.5px; margin-bottom:8px; }
+    .printhead span{ border-bottom:1px solid #666; padding:2px 20px 2px 2px; }
+    .printcols{ column-gap:6mm; }
+    .printrow{
+      break-inside:avoid; display:flex; align-items:center; gap:4px;
+      font-size:8.3px; padding:2.4px 0; border-bottom:1px dotted #999;
+    }
+    .printrow .pname{ flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+    .printrow .punit{ color:#666; font-size:7.5px; width:9mm; flex:none; }
+    .printrow .plabel{ color:#555; flex:none; }
+    .printrow .pbox{ display:inline-block; width:9mm; height:3.6mm; border:1px solid #888; flex:none; margin-right:3mm; }
+  }
 </style>
 </head>
 <body>
@@ -334,6 +356,13 @@
       <button class="btn ghost" onclick="addItem()">品目を追加</button>
     </div>
 
+    <div class="section-title">記入用シートを印刷</div>
+    <div class="card">
+      <p class="hint">品目マスタの一覧を、手書きで数を書き込める空欄シートとして印刷できるで。棚卸しや、その日の入数・出数をまとめて手書きしたい時に使ってな。</p>
+      <div style="height:10px"></div>
+      <button class="btn" onclick="preparePrintSheet()">記入用シートを印刷する</button>
+    </div>
+
     <div class="section-title">手書き集計を取り込む</div>
     <div class="card">
       <p class="hint">出庫の手書き集計表を写真に撮って、Claudeとのチャットに送ると、数字を読み取ってこの形式のJSONで返してくれるで。それをここに貼り付けたら、出庫記録として一括登録される。品目名は品目マスタと一致してる必要があるから、読み違いがないか貼り付け前に確認してな。</p>
@@ -376,6 +405,8 @@
 
 </main>
 
+<div id="printArea"></div>
+
 <nav class="tabbar">
   <button data-screen="screen-in"><span class="dot"></span>入荷</button>
   <button data-screen="screen-out"><span class="dot"></span>出荷</button>
@@ -388,9 +419,9 @@
 
 <script>
 /* ---------- バージョン情報 ---------- */
-const APP_VERSION = 'v5';
+const APP_VERSION = 'v7';
 const APP_VERSION_DATE = '2026-07-10';
-const APP_VERSION_NOTE = '出荷・使用の「理由」選択を削除し、常に「出荷」として記録するよう簡略化。';
+const APP_VERSION_NOTE = '記入用シートを、品目数に応じて自動で列数を調整し必ず1ページに収まるレイアウトに変更。';
 document.getElementById('appVersion').textContent = APP_VERSION;
 document.getElementById('appVersionFull').textContent = `${APP_VERSION}（${APP_VERSION_DATE}）`;
 document.getElementById('appVersionNote').textContent = APP_VERSION_NOTE;
@@ -661,6 +692,28 @@ function deleteItem(id){
 }
 
 /* ---------- 手書き集計取込 ---------- */
+/* ---------- 記入用シート印刷 ---------- */
+function preparePrintSheet(){
+  if(items.length===0){ toast('先に品目を登録してな'); return; }
+  const maxRowsPerCol = 42;
+  const cols = Math.min(4, Math.max(1, Math.ceil(items.length / maxRowsPerCol)));
+  let html = `<div class="printtitle">惣菜帳 ・ 記入用シート</div>`;
+  html += `<div class="printsub">品目数: ${items.length}</div>`;
+  html += `<div class="printhead"><span>日付：　　　　　　</span><span>担当者：　　　　　　</span></div>`;
+  html += `<div class="printcols" style="column-count:${cols};">`;
+  items.forEach(it=>{
+    html += `<div class="printrow">
+      <span class="pname">${esc(it.name)}</span>
+      <span class="punit">${esc(it.unit||'')}</span>
+      <span class="plabel">入</span><span class="pbox"></span>
+      <span class="plabel">出</span><span class="pbox"></span>
+    </div>`;
+  });
+  html += `</div>`;
+  document.getElementById('printArea').innerHTML = html;
+  setTimeout(()=>{ window.print(); }, 50);
+}
+
 function importHandwritten(){
   const text=document.getElementById('handwrittenImportBox').value.trim();
   if(!text){ toast('JSONを貼り付けてな'); return; }
