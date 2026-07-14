@@ -76,6 +76,29 @@
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
   .step{ display:none; }
   .step.active{ display:block; }
+
+  /* ---------- 記入用シート印刷 ---------- */
+  #printArea{ display:none; }
+  @media print{
+    @page{ size: A4 portrait; margin: 12mm; }
+    body *{ visibility:hidden; }
+    #printArea, #printArea *{ visibility:visible; }
+    #printArea{ display:block; position:absolute; top:0; left:0; width:100%; }
+    .printtitle{ font-size:15px; font-weight:800; margin:0 0 4px; color:#000; }
+    .printsub{ font-size:10px; color:#333; margin:0 0 4px; }
+    .printhead{ display:flex; gap:16px; font-size:10.5px; margin-bottom:8px; }
+    .printhead span{ border-bottom:1px solid #666; padding:2px 20px 2px 2px; }
+    .printcols{ column-gap:6mm; }
+    .printrow{
+      break-inside:avoid; display:flex; align-items:center; gap:4px;
+      font-size:8.3px; padding:2.4px 0; border-bottom:1px dotted #999;
+    }
+    .printrow .pname{ flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+    .printrow .ptag{ color:#666; font-size:7px; flex:none; }
+    .printrow .punit{ color:#666; font-size:7.5px; width:9mm; flex:none; }
+    .printrow .plabel{ color:#555; flex:none; }
+    .printrow .pbox{ display:inline-block; width:9mm; height:3.6mm; border:1px solid #888; flex:none; margin-right:3mm; }
+  }
 </style>
 </head>
 <body>
@@ -97,6 +120,8 @@
       <button class="btn" onclick="showStep(1)">品目マスタを取り込む（Excel/CSV）</button>
       <div style="height:10px"></div>
       <button class="btn" style="background:var(--sozai);" onclick="showStep('daily')">日々の入数・出数を取り込む（手書き集計）</button>
+      <div style="height:10px"></div>
+      <button class="btn" style="background:var(--ink-soft);" onclick="showStep('print')">記入用シートを印刷する</button>
     </div>
   </div>
 
@@ -112,6 +137,26 @@
       <div style="height:10px"></div>
       <button class="btn ghost" onclick="showStep(0)">← 戻る</button>
       <p class="hint" id="dailyResult" style="margin-top:14px;"></p>
+    </div>
+  </div>
+
+  <!-- StepPrint: 記入用シート印刷(アプリ選択) -->
+  <div class="step" id="stepprint">
+    <div class="section-title">どのアプリの品目を印刷する？</div>
+    <div class="card">
+      <p class="hint">品目マスタの一覧を、手書きで数を書き込める空欄シートとして印刷できるで。品目数に応じて自動で列数を調整して、必ずA4 1枚に収まるようにしてる。</p>
+      <div style="height:10px"></div>
+      <button class="btn" style="background:var(--nikuko);" onclick="printAppSheet('nikuko')">肉庫帳（原体）</button>
+      <div style="height:10px"></div>
+      <button class="btn" style="background:var(--sozai);" onclick="printAppSheet('sozai')">惣菜帳</button>
+      <div style="height:10px"></div>
+      <button class="btn" style="background:#2E5844;" onclick="printAppSheet('kakoRaw')">加工帳（原体）</button>
+      <div style="height:10px"></div>
+      <button class="btn" style="background:#2E5844;" onclick="printAppSheet('kakoProc')">加工帳（加工品）</button>
+      <div style="height:10px"></div>
+      <button class="btn" style="background:#1F6E71;" onclick="printAppSheet('shukka')">出荷帳（加工品）</button>
+      <div style="height:10px"></div>
+      <button class="btn ghost" onclick="showStep(0)">← 戻る</button>
     </div>
   </div>
 
@@ -444,6 +489,40 @@ function confirmImport(){
     `それぞれのアプリを開いたら、もう品目マスタに反映されてるはずやで。`;
   showStep(5);
 }
+
+/* ---------- 記入用シート印刷(アプリ横断) ---------- */
+const PRINT_APP_CONFIG = {
+  nikuko:  { key:'nikukocho_items', title:'肉庫帳 ・ 記入用シート', filter:null },
+  sozai:   { key:'sozaicho_items',  title:'惣菜帳 ・ 記入用シート', filter:null },
+  kakoRaw: { key:'kakocho_items',   title:'加工帳（原体） ・ 記入用シート', filter:it=>it.kind==='raw' },
+  kakoProc:{ key:'kakocho_items',   title:'加工帳（加工品） ・ 記入用シート', filter:it=>it.kind!=='raw' },
+  shukka:  { key:'kakocho_items',   title:'出荷帳（加工品） ・ 記入用シート', filter:it=>it.kind!=='raw' },
+};
+function printAppSheet(appKey){
+  const cfg = PRINT_APP_CONFIG[appKey];
+  let items = loadAppItems(cfg.key);
+  if(cfg.filter) items = items.filter(cfg.filter);
+  if(items.length===0){ toast('この品目マスタはまだ空っぽや。先にそのアプリで品目を登録するか、一括取込で品目マスタを取り込んでな'); return; }
+
+  const maxRowsPerCol = 42;
+  const cols = Math.min(4, Math.max(1, Math.ceil(items.length / maxRowsPerCol)));
+  let html = `<div class="printtitle">${esc(cfg.title)}</div>`;
+  html += `<div class="printsub">品目数: ${items.length}</div>`;
+  html += `<div class="printhead"><span>日付：　　　　　　</span><span>担当者：　　　　　　</span></div>`;
+  html += `<div class="printcols" style="column-count:${cols};">`;
+  items.forEach(it=>{
+    html += `<div class="printrow">
+      <span class="pname">${esc(it.name)}</span>
+      <span class="punit">${esc(it.unit||'')}</span>
+      <span class="plabel">入</span><span class="pbox"></span>
+      <span class="plabel">出</span><span class="pbox"></span>
+    </div>`;
+  });
+  html += `</div>`;
+  document.getElementById('printArea').innerHTML = html;
+  setTimeout(()=>{ window.print(); }, 50);
+}
 </script>
+<div id="printArea"></div>
 </body>
 </html>
