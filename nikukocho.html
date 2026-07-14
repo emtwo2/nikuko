@@ -224,6 +224,28 @@
   }
   .hint{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; }
   .divider{ height:1px; background:var(--line); margin:18px 0; }
+
+  /* ---------- 記入用シート印刷 ---------- */
+  #printArea{ display:none; }
+  @media print{
+    @page{ size: A4 portrait; margin: 12mm; }
+    body *{ visibility:hidden; }
+    #printArea, #printArea *{ visibility:visible; }
+    #printArea{ display:block; position:absolute; top:0; left:0; width:100%; }
+    .printtitle{ font-size:15px; font-weight:800; margin:0 0 4px; color:#000; }
+    .printsub{ font-size:10px; color:#333; margin:0 0 4px; }
+    .printhead{ display:flex; gap:16px; font-size:10.5px; margin-bottom:8px; }
+    .printhead span{ border-bottom:1px solid #666; padding:2px 20px 2px 2px; }
+    .printcols{ column-gap:6mm; }
+    .printrow{
+      break-inside:avoid; display:flex; align-items:center; gap:4px;
+      font-size:8.3px; padding:2.4px 0; border-bottom:1px dotted #999;
+    }
+    .printrow .pname{ flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+    .printrow .punit{ color:#666; font-size:7.5px; width:9mm; flex:none; }
+    .printrow .plabel{ color:#555; flex:none; }
+    .printrow .pbox{ display:inline-block; width:9mm; height:3.6mm; border:1px solid #888; flex:none; margin-right:3mm; }
+  }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -415,6 +437,22 @@
       <button class="btn ghost" id="markSyncedBtn" onclick="markSynced()" disabled>↑ コピーした内容を同期済みにする</button>
     </div>
 
+    <div class="section-title">記入用シートを印刷</div>
+    <div class="card">
+      <p class="hint">品目マスタの一覧を、手書きで数を書き込める空欄シートとして印刷できるで。棚卸しや、その日の入数・出数をまとめて手書きしたい時に使ってな。</p>
+      <div style="height:10px"></div>
+      <button class="btn" onclick="preparePrintSheet()">記入用シートを印刷する</button>
+    </div>
+
+    <div class="section-title">手書き集計を取り込む</div>
+    <div class="card">
+      <p class="hint">記入したシートを写真に撮って、Claudeとのチャットに送ると、数字を読み取ってこの形式のJSONで返してくれるで。それをここに貼り付けたら、納品・出庫の記録として一括登録される。品目名は品目マスタと一致してる必要があるから、貼り付け前に確認してな。</p>
+      <div style="height:8px"></div>
+      <textarea class="exportbox" id="handwrittenImportBox" placeholder='{"記録":[{"区分":"納品","品目":"ロース","数量":8,"日付":"2026-07-15"},{"区分":"出庫","品目":"バラ","数量":2,"日付":"2026-07-15"}]}'></textarea>
+      <div style="height:10px"></div>
+      <button class="btn" onclick="importHandwritten()">この内容を取り込む</button>
+    </div>
+
     <div class="section-title">加工帳のデータを取り込む</div>
     <div class="card">
       <p class="hint">加工帳の「未同期の記録をコピー」で出したJSONを貼り付けて取り込むと、加工に投入した分が原体在庫から自動で差し引かれるで。同じ内容は二重取り込みされへん。</p>
@@ -454,6 +492,8 @@
 
 </main>
 
+<div id="printArea"></div>
+
 <nav class="tabbar">
   <button data-screen="screen-in"><span class="dot"></span>納品</button>
   <button data-screen="screen-out"><span class="dot"></span>出庫</button>
@@ -467,9 +507,9 @@
 <script>
 /* ---------- バージョン情報 ---------- */
 /* 更新するたびにここを書き換える */
-const APP_VERSION = 'v10';
+const APP_VERSION = 'v12';
 const APP_VERSION_DATE = '2026-07-06';
-const APP_VERSION_NOTE = '品目・仕入先の選択をネイティブのドロップダウンに変更(iOS対策)。Excel/CSVから品目マスタを一括取込できる機能を追加。加工帳JSON取込で原体在庫を自動差引。';
+const APP_VERSION_NOTE = '記入用シートを、品目数に応じて自動で列数を調整し必ず1ページに収まるレイアウトに変更。加工帳JSON取込で原体在庫を自動差引。';
 document.getElementById('appVersion').textContent = APP_VERSION;
 document.getElementById('appVersionFull').textContent = `${APP_VERSION}（${APP_VERSION_DATE}）`;
 document.getElementById('appVersionNote').textContent = APP_VERSION_NOTE;
@@ -978,6 +1018,63 @@ function deleteItem(id){
 }
 
 /* ---------- 加工帳取込 ---------- */
+/* ---------- 記入用シート印刷 ---------- */
+function preparePrintSheet(){
+  if(items.length===0){ toast('先に品目を登録してな'); return; }
+  const maxRowsPerCol = 42;
+  const cols = Math.min(4, Math.max(1, Math.ceil(items.length / maxRowsPerCol)));
+  let html = `<div class="printtitle">肉庫帳 ・ 記入用シート</div>`;
+  html += `<div class="printsub">品目数: ${items.length}</div>`;
+  html += `<div class="printhead"><span>日付：　　　　　　</span><span>担当者：　　　　　　</span></div>`;
+  html += `<div class="printcols" style="column-count:${cols};">`;
+  items.forEach(it=>{
+    html += `<div class="printrow">
+      <span class="pname">${esc(it.name)}</span>
+      <span class="punit">${esc(it.unit||'')}</span>
+      <span class="plabel">入</span><span class="pbox"></span>
+      <span class="plabel">出</span><span class="pbox"></span>
+    </div>`;
+  });
+  html += `</div>`;
+  document.getElementById('printArea').innerHTML = html;
+  setTimeout(()=>{ window.print(); }, 50);
+}
+
+/* ---------- 手書き集計取込 ---------- */
+function importHandwritten(){
+  const text=document.getElementById('handwrittenImportBox').value.trim();
+  if(!text){ toast('JSONを貼り付けてな'); return; }
+  let data;
+  try{ data=JSON.parse(text); }catch(e){ toast('JSONの形式が読めへんかったわ'); return; }
+  const records = data.記録 || data.records || [];
+  if(!Array.isArray(records) || records.length===0){ toast('記録データが見つからへんで'); return; }
+  let added=0, dup=0, unknown=0, invalid=0;
+  records.forEach(r=>{
+    const kubun=r.区分, name=r.品目, qty=parseFloat(r.数量), date=r.日付;
+    if(!kubun || !name || !qty || !date){ invalid++; return; }
+    const it=items.find(i=>i.name===name);
+    if(!it){ unknown++; return; }
+    const type = kubun==='納品' ? 'in' : (kubun==='出庫' ? 'out' : null);
+    if(!type){ invalid++; return; }
+    const key=`hw|${date}|${it.id}|${qty}|${type}`;
+    if(logs.find(l=>l.hwKey===key)){ dup++; return; }
+    const rec = {id:uid(), type, itemId:it.id, qty, date, ts:Date.now(), synced:false, hwKey:key};
+    if(type==='in'){ rec.price = r.単価 || 0; rec.supplier = r.仕入先 || ''; }
+    else { rec.reason = r.理由 || '使用'; }
+    logs.push(rec);
+    added++;
+  });
+  saveLogs(logs);
+  document.getElementById('handwrittenImportBox').value='';
+  let msg=`${added}件取り込んだで`;
+  if(dup) msg+=`（重複${dup}件スキップ）`;
+  if(unknown) msg+=`（品目不一致${unknown}件、品目マスタの名前と合ってるか確認してな）`;
+  if(invalid) msg+=`（データ不足${invalid}件）`;
+  toast(msg);
+  refreshBadges();
+  renderHistory();
+}
+
 function importKako(){
   const text=document.getElementById('kakoImportBox').value.trim();
   if(!text){ toast('JSONを貼り付けてな'); return; }
