@@ -90,10 +90,11 @@
     .printhead span{ border-bottom:1px solid #666; padding:2px 20px 2px 2px; }
     .printcols{ column-gap:6mm; }
     .printrow{
-      break-inside:avoid; display:flex; align-items:center; gap:4px;
-      font-size:8.3px; padding:2.4px 0; border-bottom:1px dotted #999;
+      break-inside:avoid; display:block;
+      padding:3px 0; border-bottom:1px dotted #999;
     }
-    .printrow .pname{ flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+    .printrow .pname{ font-size:8.6px; font-weight:700; line-height:1.25; word-break:break-all; }
+    .printrow .pboxline{ display:flex; align-items:center; gap:4px; margin-top:1.5px; }
     .printrow .ptag{ color:#666; font-size:7px; flex:none; }
     .printrow .punit{ color:#666; font-size:7.5px; width:9mm; flex:none; }
     .printrow .plabel{ color:#555; flex:none; }
@@ -504,7 +505,7 @@ function printAppSheet(appKey){
   if(cfg.filter) items = items.filter(cfg.filter);
   if(items.length===0){ toast('この品目マスタはまだ空っぽや。先にそのアプリで品目を登録するか、一括取込で品目マスタを取り込んでな'); return; }
 
-  const maxRowsPerCol = 42;
+  const maxRowsPerCol = 26;
   const cols = Math.min(4, Math.max(1, Math.ceil(items.length / maxRowsPerCol)));
   let html = `<div class="printtitle">${esc(cfg.title)}</div>`;
   html += `<div class="printsub">品目数: ${items.length}</div>`;
@@ -512,10 +513,12 @@ function printAppSheet(appKey){
   html += `<div class="printcols" style="column-count:${cols};">`;
   items.forEach(it=>{
     html += `<div class="printrow">
-      <span class="pname">${esc(it.name)}</span>
-      <span class="punit">${esc(it.unit||'')}</span>
-      <span class="plabel">入</span><span class="pbox"></span>
-      <span class="plabel">出</span><span class="pbox"></span>
+      <div class="pname">${esc(it.name)}</div>
+      <div class="pboxline">
+        <span class="punit">${esc(it.unit||'')}</span>
+        <span class="plabel">入</span><span class="pbox"></span>
+        <span class="plabel">出</span><span class="pbox"></span>
+      </div>
     </div>`;
   });
   html += `</div>`;
