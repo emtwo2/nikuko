@@ -195,10 +195,11 @@
     .printhead span{ border-bottom:1px solid #666; padding:2px 20px 2px 2px; }
     .printcols{ column-gap:6mm; }
     .printrow{
-      break-inside:avoid; display:flex; align-items:center; gap:4px;
-      font-size:8.3px; padding:2.4px 0; border-bottom:1px dotted #999;
+      break-inside:avoid; display:block;
+      padding:3px 0; border-bottom:1px dotted #999;
     }
-    .printrow .pname{ flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+    .printrow .pname{ font-size:8.6px; font-weight:700; line-height:1.25; word-break:break-all; }
+    .printrow .pboxline{ display:flex; align-items:center; gap:4px; margin-top:1.5px; }
     .printrow .punit{ color:#666; font-size:7.5px; width:9mm; flex:none; }
     .printrow .plabel{ color:#555; flex:none; }
     .printrow .pbox{ display:inline-block; width:9mm; height:3.6mm; border:1px solid #888; flex:none; margin-right:3mm; }
@@ -419,9 +420,9 @@
 
 <script>
 /* ---------- バージョン情報 ---------- */
-const APP_VERSION = 'v7';
+const APP_VERSION = 'v8';
 const APP_VERSION_DATE = '2026-07-10';
-const APP_VERSION_NOTE = '記入用シートを、品目数に応じて自動で列数を調整し必ず1ページに収まるレイアウトに変更。';
+const APP_VERSION_NOTE = '記入用シートで品目名が長いと省略される不具合を修正。名前を折り返し表示にし、1列あたりの行数を調整。';
 document.getElementById('appVersion').textContent = APP_VERSION;
 document.getElementById('appVersionFull').textContent = `${APP_VERSION}（${APP_VERSION_DATE}）`;
 document.getElementById('appVersionNote').textContent = APP_VERSION_NOTE;
@@ -695,7 +696,7 @@ function deleteItem(id){
 /* ---------- 記入用シート印刷 ---------- */
 function preparePrintSheet(){
   if(items.length===0){ toast('先に品目を登録してな'); return; }
-  const maxRowsPerCol = 42;
+  const maxRowsPerCol = 26;
   const cols = Math.min(4, Math.max(1, Math.ceil(items.length / maxRowsPerCol)));
   let html = `<div class="printtitle">惣菜帳 ・ 記入用シート</div>`;
   html += `<div class="printsub">品目数: ${items.length}</div>`;
@@ -703,10 +704,12 @@ function preparePrintSheet(){
   html += `<div class="printcols" style="column-count:${cols};">`;
   items.forEach(it=>{
     html += `<div class="printrow">
-      <span class="pname">${esc(it.name)}</span>
-      <span class="punit">${esc(it.unit||'')}</span>
-      <span class="plabel">入</span><span class="pbox"></span>
-      <span class="plabel">出</span><span class="pbox"></span>
+      <div class="pname">${esc(it.name)}</div>
+      <div class="pboxline">
+        <span class="punit">${esc(it.unit||'')}</span>
+        <span class="plabel">入</span><span class="pbox"></span>
+        <span class="plabel">出</span><span class="pbox"></span>
+      </div>
     </div>`;
   });
   html += `</div>`;
