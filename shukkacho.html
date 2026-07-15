@@ -262,9 +262,9 @@
 
 <script>
 /* ---------- バージョン情報 ---------- */
-const APP_VERSION = 'v1';
+const APP_VERSION = 'v2';
 const APP_VERSION_DATE = '2026-07-13';
-const APP_VERSION_NOTE = '初版。加工帳から出荷機能を分離。品目マスタ・バッチ記録は加工帳(kakocho_items / kakocho_batches)を読み込み専用で参照し、出荷記録(kakocho_ships)はこのアプリが担当する。';
+const APP_VERSION_NOTE = '加工帳が全面簡素化(歩留まり廃止)されたのに合わせ、参照データをkakocho_batchesからkakocho_production(シンプル入庫ログ)に変更。原体フィルタも撤去。';
 document.getElementById('appVersion').textContent = APP_VERSION;
 document.getElementById('appVersionFull').textContent = `${APP_VERSION}（${APP_VERSION_DATE}）`;
 document.getElementById('appVersionNote').textContent = APP_VERSION_NOTE;
@@ -278,13 +278,13 @@ function loadJson(k, fb){ try{ return JSON.parse(localStorage.getItem(k)) ?? fb;
 function saveJson(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
 
 /* ---------- データ層 ----------
-   items / batches は加工帳が所有。ここでは読み込み専用。
+   items / production は加工帳が所有。ここでは読み込み専用。
    ships は共有ストレージキー(kakocho_ships)にこのアプリが書き込む。 */
-const LS_ITEMS='kakocho_items', LS_BATCHES='kakocho_batches', LS_SHIPS='kakocho_ships', LS_LOSSES='kakocho_losses';
+const LS_ITEMS='kakocho_items', LS_PRODUCTION='kakocho_production', LS_SHIPS='kakocho_ships', LS_LOSSES='kakocho_losses';
 const LS_STAFFNAME='shukkacho_staffname';
 
-function loadItems(){ return (loadJson(LS_ITEMS, []) || []).filter(i=>i.kind!=='raw'); }
-function loadBatches(){ return loadJson(LS_BATCHES, []) || []; }
+function loadItems(){ return loadJson(LS_ITEMS, []) || []; }
+function loadProduction(){ return loadJson(LS_PRODUCTION, []) || []; }
 function loadShips(){ return loadJson(LS_SHIPS, []) || []; }
 function saveShips(v){ saveJson(LS_SHIPS, v); }
 function loadLosses(){ return loadJson(LS_LOSSES, []) || []; }
@@ -292,14 +292,14 @@ function loadStaffName(){ return localStorage.getItem(LS_STAFFNAME) || ''; }
 function saveStaffName(v){ localStorage.setItem(LS_STAFFNAME, v); }
 
 let items = loadItems();
-let batches = loadBatches();
+let production = loadProduction();
 let ships = loadShips();
 let losses = loadLosses();
 let selectedShipItem = null;
 
 function refreshDataFromSharedStore(){
   items = loadItems();
-  batches = loadBatches();
+  production = loadProduction();
   ships = loadShips();
   losses = loadLosses();
 }
@@ -307,7 +307,7 @@ function refreshDataFromSharedStore(){
 /* ---------- 在庫計算（加工帳と同じロジック） ---------- */
 function stockFor(itemId){
   let q=0;
-  batches.forEach(b=>{ (b.outputs||[]).forEach(o=>{ if(o.itemId===itemId) q+=o.qty; }); });
+  production.forEach(p=>{ if(p.itemId===itemId) q+=p.qty; });
   ships.forEach(s=>{ if(s.itemId===itemId) q-=s.qty; });
   losses.forEach(l=>{ if(l.itemId===itemId) q-=l.qty; });
   return r3(q);
