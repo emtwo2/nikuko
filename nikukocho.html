@@ -454,15 +454,7 @@
       <button class="btn" onclick="importHandwritten()">この内容を取り込む</button>
     </div>
 
-    <div class="section-title">加工帳のデータを取り込む</div>
-    <div class="card">
-      <p class="hint">加工帳の「未同期の記録をコピー」で出したJSONを貼り付けて取り込むと、加工に投入した分が原体在庫から自動で差し引かれるで。同じ内容は二重取り込みされへん。</p>
-      <div style="height:8px"></div>
-      <textarea class="exportbox" id="kakoImportBox" placeholder='{"app":"加工帳", "記録":[...]}'></textarea>
-      <div style="height:10px"></div>
-      <button class="btn" onclick="importKako()">加工帳JSONを取り込む</button>
-      <p class="hint" style="margin-top:10px;">取込済み加工投入: <span class="num" id="kakoCount">0</span>件</p>
-    </div>
+    <!-- 加工帳が原体消費を記録しなくなったため、加工帳データ取込機能は廃止しました -->
 
     <div class="section-title">バックアップ・復元</div>
     <div class="card">
@@ -508,9 +500,9 @@
 <script>
 /* ---------- バージョン情報 ---------- */
 /* 更新するたびにここを書き換える */
-const APP_VERSION = 'v13';
+const APP_VERSION = 'v14';
 const APP_VERSION_DATE = '2026-07-06';
-const APP_VERSION_NOTE = '記入用シートで品目名が長いと省略される不具合を修正。名前を折り返し表示にし、1列あたりの行数を調整。加工帳JSON取込で原体在庫を自動差引。';
+const APP_VERSION_NOTE = '加工帳が全面簡素化(歩留まり廃止)されたのに伴い、使われなくなった「加工帳のデータを取り込む」機能を削除。加工帳JSON取込で原体在庫を自動差引。';
 document.getElementById('appVersion').textContent = APP_VERSION;
 document.getElementById('appVersionFull').textContent = `${APP_VERSION}（${APP_VERSION_DATE}）`;
 document.getElementById('appVersionNote').textContent = APP_VERSION_NOTE;
@@ -898,7 +890,6 @@ function deleteSupplier(id){
 /* ---------- 設定タブ ---------- */
 function renderSettings(){
   document.getElementById('staffName').value = loadStaffName();
-  updateKakoCount();
   renderSupplierMaster();
   const wrap=document.getElementById('itemMasterList'); wrap.innerHTML='';
   if(items.length===0){ wrap.innerHTML='<div class="empty">品目がまだないで</div>'; }
@@ -1078,40 +1069,7 @@ function importHandwritten(){
   renderHistory();
 }
 
-function importKako(){
-  const text=document.getElementById('kakoImportBox').value.trim();
-  if(!text){ toast('JSONを貼り付けてな'); return; }
-  let data;
-  try{ data=JSON.parse(text); }catch(e){ toast('JSONの形式が読めへんかったわ'); return; }
-  const records = data.記録 || [];
-  if(!Array.isArray(records) || records.length===0){ toast('記録データが見つからへんで'); return; }
-  let added=0, skippedDup=0, skippedUnknown=0, skippedKind=0;
-  records.forEach(r=>{
-    if(r.区分!=='加工投入'){ skippedKind++; return; } /* 加工品出荷は原体に関係ないので無視 */
-    const qty=parseFloat(r.数量), date=r.日付;
-    if(!qty || !date) return;
-    /* 品目IDで照合、なければ品目名で照合 */
-    let it = r.品目ID ? items.find(i=>i.id===r.品目ID) : null;
-    if(!it && r.品目) it = items.find(i=>i.name===r.品目);
-    if(!it){ skippedUnknown++; return; }
-    const key=`kako|${date}|${it.id}|${qty}`;
-    if(logs.find(l=>l.kakoKey===key)){ skippedDup++; return; }
-    logs.push({id:uid(), type:'out', itemId:it.id, qty, reason:'加工', date, ts:Date.now(), synced:true, kakoKey:key});
-    added++;
-  });
-  saveLogs(logs);
-  document.getElementById('kakoImportBox').value='';
-  let msg=`${added}件の加工投入を差し引いたで`;
-  if(skippedDup) msg+=`（重複${skippedDup}件スキップ）`;
-  if(skippedUnknown) msg+=`（品目不一致${skippedUnknown}件）`;
-  toast(msg);
-  updateKakoCount();
-  refreshBadges();
-}
-function updateKakoCount(){
-  const el=document.getElementById('kakoCount');
-  if(el) el.textContent = logs.filter(l=>l.kakoKey).length;
-}
+/* 加工帳連携(importKako)は廃止しました。加工帳が原体消費を記録しなくなったため。 */
 
 /* ---------- エクスポート ---------- */
 function doExport(){
