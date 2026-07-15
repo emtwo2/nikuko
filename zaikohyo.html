@@ -111,6 +111,30 @@
   nav.tabbar button .dot{ width:6px; height:6px; border-radius:50%; background:transparent; }
   nav.tabbar button.active{ color:var(--stamp); }
   nav.tabbar button.active .dot{ background:var(--stamp); }
+
+  /* ---------- 印刷用 ---------- */
+  #printArea{ display:none; }
+  @media print{
+    @page{ size: A4 portrait; margin: 10mm; }
+    body *{ visibility:hidden; }
+    #printArea, #printArea *{ visibility:visible; }
+    #printArea{ display:block; position:absolute; top:0; left:0; width:100%; }
+    .printchunk{ page-break-after:always; }
+    .printchunk:last-child{ page-break-after:auto; }
+    .printtitle{ font-size:13px; font-weight:800; margin:0 0 6px; color:#000; }
+    .printsub{ font-size:10px; color:#444; margin:0 0 8px; }
+    table.printtable{ width:100%; border-collapse:collapse; table-layout:fixed; }
+    table.printtable th, table.printtable td{
+      border:1px solid #888; padding:2px 3px; text-align:right;
+      font-size:8.2px; line-height:1.25;
+    }
+    table.printtable td{ white-space:nowrap; overflow:hidden; }
+    table.printtable th{ white-space:normal; word-break:break-all; }
+    table.printtable th:first-child, table.printtable td:first-child{ text-align:left; width:14mm; }
+    table.printtable thead th{ background:#eee !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    table.printtable td.printbal{ font-weight:800; }
+    table.printtable tr.printtoday td{ background:#f2ecd8 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  }
 </style>
 </head>
 <body>
@@ -139,6 +163,8 @@
       <div class="tablewrap"><table class="ledger" id="meatTable"></table></div>
       <div style="height:12px"></div>
       <button class="btn" onclick="downloadCsv('meat')">CSVをダウンロード</button>
+      <div style="height:8px"></div>
+      <button class="btn" style="background:var(--stamp-deep);" onclick="preparePrint('meat')">この表を印刷する</button>
     </div>
   </section>
 
@@ -154,10 +180,14 @@
       <div class="tablewrap"><table class="ledger" id="sozaiTable"></table></div>
       <div style="height:12px"></div>
       <button class="btn" onclick="downloadCsv('sozai')">CSVをダウンロード</button>
+      <div style="height:8px"></div>
+      <button class="btn" style="background:var(--stamp-deep);" onclick="preparePrint('sozai')">この表を印刷する</button>
     </div>
   </section>
 
 </main>
+
+<div id="printArea"></div>
 
 <nav class="tabbar">
   <button data-screen="screen-meat"><span class="dot"></span>肉系</button>
@@ -166,7 +196,7 @@
 
 <script>
 /* ---------- バージョン情報 ---------- */
-const APP_VERSION = 'v1';
+const APP_VERSION = 'v4';
 document.getElementById('appVersion').textContent = APP_VERSION;
 
 /* ---------- ユーティリティ ---------- */
@@ -220,15 +250,13 @@ function buildDailyRows(itemsList, eventsByItem, startDate, endDate){
 
 /* ---------- データ取得: 肉系(加工帳) ---------- */
 function getMeatData(){
-  const items = (loadJson('kakocho_items', []) || []).filter(i=>i.kind!=='raw');
-  const batches = loadJson('kakocho_batches', []) || [];
+  const items = loadJson('kakocho_items', []) || [];
+  const production = loadJson('kakocho_production', []) || [];
   const ships = loadJson('kakocho_ships', []) || [];
   const eventsByItem = {};
   items.forEach(it=> eventsByItem[it.id]=[]);
-  batches.forEach(b=>{
-    (b.outputs||[]).forEach(o=>{
-      if(eventsByItem[o.itemId]) eventsByItem[o.itemId].push({date:b.date, type:'in', qty:o.qty});
-    });
+  production.forEach(p=>{
+    if(eventsByItem[p.itemId]) eventsByItem[p.itemId].push({date:p.date, type:'in', qty:p.qty});
   });
   ships.forEach(s=>{
     if(eventsByItem[s.itemId]) eventsByItem[s.itemId].push({date:s.date, type:'out', qty:s.qty});
@@ -339,7 +367,7 @@ function renderTable(kind){
       }
       body += `<td class="num ${cls} ${!day.in?'zero':''}">${inTxt}</td>`;
       body += `<td class="num ${outCls}">${outTxt}</td>`;
-      body += `<td class="num bal ${cls}">${day.bal}</td>`;
+      body += `<td class="num bal ${cls} ${!day.bal?'zero':''}">${day.bal ? day.bal : ''}</td>`;
     });
     body += `</tr>`;
   });
@@ -349,6 +377,54 @@ function renderTable(kind){
     tableEl.insertAdjacentHTML('afterend', '<p class="hint" style="margin-top:8px;">※「〜」の数字は直近30日の平均出数を目安として表示してるだけで、実績やないで。日付が変わると自動で更新される。</p>');
   }
   lastRender[kind] = {items, dates, result};
+}
+
+/* ---------- 印刷 ---------- */
+const PRINT_CHUNK_SIZE = 5; /* 1ページに入れる品目数の目安 */
+function chunkArray(arr, size){
+  const out=[];
+  for(let i=0;i<arr.length;i+=size){ out.push(arr.slice(i,i+size)); }
+  return out;
+}
+function preparePrint(kind){
+  const data = lastRender[kind];
+  if(!data || data.items.length===0){ toast(kind==='meat'?'肉系のデータがないで':'惣菜系のデータがないで'); return; }
+  const isMeat = kind==='meat';
+  const mode = isMeat ? meatMode : sozaiMode;
+  const modeLabel = mode==='month'
+    ? (document.getElementById(isMeat?'meatMonth':'sozaiMonth').value || todayStr().slice(0,7)) + 'の月間表'
+    : '直近2週間表（' + data.dates[0].slice(5).replace('-','/') + '〜' + data.dates[data.dates.length-1].slice(5).replace('-','/') + '）';
+  const kindLabel = isMeat ? '肉系（加工帳）' : '惣菜系（惣菜帳）';
+
+  const {items, dates, result} = data;
+  const chunks = chunkArray(items, PRINT_CHUNK_SIZE);
+  const today = todayStr();
+
+  let html = '';
+  chunks.forEach((chunkItems, ci)=>{
+    html += `<div class="printchunk">`;
+    html += `<div class="printtitle">在庫表 ・ ${esc(kindLabel)}</div>`;
+    html += `<div class="printsub">${esc(modeLabel)} ／ ページ ${ci+1}/${chunks.length}（品目 ${ci*PRINT_CHUNK_SIZE+1}〜${ci*PRINT_CHUNK_SIZE+chunkItems.length}）／ 印刷日 ${todayStr()}</div>`;
+    html += `<table class="printtable"><thead>`;
+    html += `<tr><th rowspan="2">日付</th>`;
+    chunkItems.forEach(it=>{ html += `<th colspan="3">${esc(it.name)}(${esc(it.unit||'')})</th>`; });
+    html += `</tr><tr>`;
+    chunkItems.forEach(()=>{ html += `<th>入</th><th>出</th><th>残</th>`; });
+    html += `</tr></thead><tbody>`;
+    dates.forEach(d=>{
+      const isToday = d===today;
+      html += `<tr class="${isToday?'printtoday':''}"><td>${d.slice(5).replace('-','/')}</td>`;
+      chunkItems.forEach(it=>{
+        const day = result[it.id].days.find(x=>x.date===d);
+        html += `<td>${day.in||''}</td><td>${day.out||''}</td><td class="printbal">${day.bal||''}</td>`;
+      });
+      html += `</tr>`;
+    });
+    html += `</tbody></table></div>`;
+  });
+
+  document.getElementById('printArea').innerHTML = html;
+  setTimeout(()=>{ window.print(); }, 50);
 }
 
 /* ---------- CSV出力 ---------- */
