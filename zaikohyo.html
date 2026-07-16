@@ -222,11 +222,20 @@ function monthRange(ym){
 function loadJson(k, fb){ try{ return JSON.parse(localStorage.getItem(k)) ?? fb; }catch(e){ return fb; } }
 
 /* ---------- 日次残高の共通計算 ---------- */
-function avgDailyOut30(evs, today){
-  const start = addDays(today, -30);
-  const relevant = evs.filter(e=>e.type==='out' && e.date>=start && e.date<today);
+function daysBetween(d1,d2){
+  const a=new Date(d1+'T00:00:00'), b=new Date(d2+'T00:00:00');
+  return Math.round((b-a)/86400000);
+}
+function avgDailyOutAdaptive(evs, today){
+  if(evs.length===0) return 0;
+  let earliest = evs[0].date;
+  evs.forEach(e=>{ if(e.date<earliest) earliest=e.date; });
+  const cap = addDays(today, -13); /* データが2週間超あっても直近2週間までに制限(直近の忙しさをより反映させるため) */
+  const start = earliest > cap ? earliest : cap;
+  const relevant = evs.filter(e=>e.type==='out' && e.date>=start && e.date<=today); /* 今日の分も含める */
   const total = relevant.reduce((s,e)=>s+e.qty,0);
-  return r3(total/30);
+  const daysSpan = daysBetween(start, today) + 1; /* 追跡開始日〜今日までの日数(今日を含む) */
+  return r3(total/daysSpan);
 }
 
 function buildDailyRows(itemsList, eventsByItem, startDate, endDate){
@@ -339,7 +348,7 @@ function renderTable(kind){
 
   const avgOutByItem = {};
   if(mode==='2weeks'){
-    items.forEach(it=>{ avgOutByItem[it.id] = avgDailyOut30(eventsByItem[it.id]||[], today); });
+    items.forEach(it=>{ avgOutByItem[it.id] = avgDailyOutAdaptive(eventsByItem[it.id]||[], today); });
   }
 
   let h1 = '<tr><th rowspan="2">日付</th>';
@@ -350,6 +359,8 @@ function renderTable(kind){
   h2 += '</tr>';
 
   let body = '';
+  const projRunning = {};
+  items.forEach(it=> projRunning[it.id] = null);
   dates.forEach(d=>{
     const isToday = d===today;
     const dObj = new Date(d+'T00:00:00');
@@ -362,20 +373,31 @@ function renderTable(kind){
       const inTxt = day.in ? day.in : '';
       let outTxt = day.out ? day.out : '';
       let outCls = `${cls} ${!day.out?'zero':''}`;
-      if(mode==='2weeks' && !day.out && avgOutByItem[it.id]>0){
-        outTxt = '〜'+avgOutByItem[it.id];
-        outCls = `${cls} estimate`;
+      let displayBal = day.bal;
+      let balCls = cls;
+      if(mode==='2weeks'){
+        if(day.out || day.in){
+          /* 実績がある日は実際の残高をそのまま使い、見込み計算はリセット */
+          projRunning[it.id] = day.bal;
+        } else if(avgOutByItem[it.id]>0){
+          if(projRunning[it.id]===null) projRunning[it.id] = day.bal;
+          projRunning[it.id] = r3(projRunning[it.id] - avgOutByItem[it.id]);
+          outTxt = '〜'+avgOutByItem[it.id];
+          outCls = `${cls} estimate`;
+          displayBal = projRunning[it.id];
+          balCls = `${cls} estimate`;
+        }
       }
       body += `<td class="num ${cls} ${!day.in?'zero':''}">${inTxt}</td>`;
       body += `<td class="num ${outCls}">${outTxt}</td>`;
-      body += `<td class="num bal ${cls} ${!day.bal?'zero':''}">${day.bal ? day.bal : ''}</td>`;
+      body += `<td class="num bal ${balCls} ${displayBal===0?'zero':''}">${displayBal===0 ? '' : displayBal}</td>`;
     });
     body += `</tr>`;
   });
 
   tableEl.innerHTML = `<thead>${h1}${h2}</thead><tbody>${body}</tbody>`;
   if(mode==='2weeks'){
-    tableEl.insertAdjacentHTML('afterend', '<p class="hint" style="margin-top:8px;">※「〜」の数字は直近30日の平均出数を目安として表示してるだけで、実績やないで。日付が変わると自動で更新される。</p>');
+    tableEl.insertAdjacentHTML('afterend', '<p class="hint" style="margin-top:8px;">※「〜」の数字は、これまで記録された分の平均出数（最大直近2週間）を目安として表示してるだけで、実績やないで。ゼロやった日も日数として含めて計算してる。日付が変わると自動で更新される。</p>');
   }
   lastRender[kind] = {items, dates, result};
 }
