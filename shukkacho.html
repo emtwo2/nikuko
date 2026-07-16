@@ -214,27 +214,6 @@
       </label>
     </div>
 
-    <div class="section-title">エクスポート（出荷記録）</div>
-    <div class="card">
-      <p class="hint">未同期の出荷記録をコピーするで。LINE等で送ってもらったら、Claudeとのチャットで集計に使うで。</p>
-      <p style="margin:10px 0 14px;"><span class="num" id="unsyncedCount" style="font-weight:800; font-size:18px;">0</span> 件の未同期記録があります</p>
-      <button class="btn" onclick="doExport()">未同期の記録をコピー</button>
-      <div style="height:10px"></div>
-      <textarea class="exportbox" id="exportBox" readonly></textarea>
-      <div style="height:10px"></div>
-      <button class="btn ghost" id="markSyncedBtn" onclick="markSynced()" disabled>↑ コピーした内容を同期済みにする</button>
-    </div>
-
-    <div class="section-title">バックアップ・復元（出荷記録のみ）</div>
-    <div class="card">
-      <p class="hint">このバックアップには出荷記録だけが入ってるで。品目マスタやバッチ記録は加工帳側のバックアップを使ってな。</p>
-      <div style="height:10px"></div>
-      <button class="btn" onclick="downloadBackup()">出荷記録をバックアップ（ファイル保存）</button>
-      <div class="divider"></div>
-      <input type="file" id="restoreFileInput" accept="application/json" style="display:none;" onchange="restoreFromFile(event)">
-      <button class="btn ghost" onclick="document.getElementById('restoreFileInput').click()">バックアップから復元する</button>
-    </div>
-
     <div class="section-title">データ管理</div>
     <div class="card">
       <p class="hint">ここで削除できるのは出荷記録のみ。品目マスタやバッチ記録は消えへん（加工帳側で管理されてるため）。</p>
@@ -262,9 +241,9 @@
 
 <script>
 /* ---------- バージョン情報 ---------- */
-const APP_VERSION = 'v2';
+const APP_VERSION = 'v3';
 const APP_VERSION_DATE = '2026-07-13';
-const APP_VERSION_NOTE = '加工帳が全面簡素化(歩留まり廃止)されたのに合わせ、参照データをkakocho_batchesからkakocho_production(シンプル入庫ログ)に変更。原体フィルタも撤去。';
+const APP_VERSION_NOTE = 'エクスポート・バックアップ機能を「管理帳」アプリに移動。出荷帳は出荷入力＋在庫確認＋履歴に専念する形に整理。';
 document.getElementById('appVersion').textContent = APP_VERSION;
 document.getElementById('appVersionFull').textContent = `${APP_VERSION}（${APP_VERSION_DATE}）`;
 document.getElementById('appVersionNote').textContent = APP_VERSION_NOTE;
@@ -430,77 +409,8 @@ function renderSettings(){
 }
 document.getElementById('staffName').addEventListener('input', e=>{ saveStaffName(e.target.value); });
 function refreshBadges(){
-  document.getElementById('unsyncedCount').textContent = ships.filter(s=>!s.synced).length;
 }
 
-/* ---------- エクスポート ---------- */
-function doExport(){
-  refreshDataFromSharedStore();
-  const unsynced = ships.filter(s=>!s.synced);
-  if(unsynced.length===0){ toast('未同期の記録はないで'); return; }
-  const records = unsynced.map(s=>{
-    const it=items.find(i=>i.id===s.itemId);
-    return { 区分:'加工品出荷', 品目ID:s.itemId, 品目:it?.name||'(削除済み)', 数量:s.qty, 単位:it?.unit||'kg', 日付:s.date, 出荷先:s.dest||'' };
-  });
-  const payload = { app:'出荷帳', 使用者:loadStaffName()||'(未設定)', エクスポート日時:new Date().toLocaleString('ja-JP'), 記録:records };
-  const text = JSON.stringify(payload, null, 2);
-  const box = document.getElementById('exportBox');
-  box.value = text;
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(()=>toast('コピーしたで。LINE等で送るか、Claudeのチャットに貼り付けてな')).catch(()=>{
-      box.select(); toast('自動コピーできんかった。手動で選択してコピーしてな');
-    });
-  } else { box.select(); toast('このテキストを選択してコピーしてな'); }
-  document.getElementById('markSyncedBtn').disabled=false;
-  window._pendingSyncIds = unsynced.map(s=>s.id);
-}
-function markSynced(){
-  if(!window._pendingSyncIds){ toast('先にコピーしてな'); return; }
-  refreshDataFromSharedStore();
-  ships = ships.map(s=> window._pendingSyncIds.includes(s.id) ? {...s, synced:true} : s);
-  saveShips(ships);
-  window._pendingSyncIds=null;
-  document.getElementById('markSyncedBtn').disabled=true;
-  document.getElementById('exportBox').value='';
-  toast('同期済みにしたで');
-  refreshBadges();
-  renderHistory();
-}
-
-/* ---------- バックアップ・復元(出荷記録のみ) ---------- */
-function downloadBackup(){
-  refreshDataFromSharedStore();
-  const payload = { app:'出荷帳', version:1, exportedAt:new Date().toISOString(), ships, staffName:loadStaffName() };
-  const text = JSON.stringify(payload, null, 2);
-  const blob = new Blob([text], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `出荷帳バックアップ_${todayStr()}.json`;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(()=>URL.revokeObjectURL(url), 2000);
-  toast('バックアップファイルを保存したで');
-}
-function restoreFromFile(e){
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = ()=>{
-    try{
-      const data = JSON.parse(reader.result);
-      if(!Array.isArray(data.ships)){
-        toast('このファイルは出荷帳のバックアップやなさそうやで'); e.target.value=''; return;
-      }
-      const when = data.exportedAt ? data.exportedAt.slice(0,10) : '日付不明';
-      if(!confirm(`このバックアップ（${when}時点）で今の出荷記録を上書きする？元に戻せへんで。`)){ e.target.value=''; return; }
-      ships = data.ships; saveShips(ships);
-      if(typeof data.staffName==='string') saveStaffName(data.staffName);
-      toast(`${when}時点のバックアップを復元したで`);
-      renderSettings(); renderStock(); renderHistory();
-    }catch(err){ toast('ファイルの読み込みに失敗したで。JSON形式か確認してな'); }
-    e.target.value='';
-  };
-  reader.readAsText(file);
-}
 function resetAll(){
   if(!confirm('本当に出荷記録を全部削除する？元に戻せへんで。')) return;
   if(!confirm('もう一度確認：出荷記録がすべて消えるで（品目マスタ・バッチ記録は加工帳側に残る）。ええか？')) return;
