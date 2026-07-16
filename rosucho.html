@@ -364,7 +364,7 @@ function defaultProducts(){
   ];
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
-function todayStr(){ return new Date().toISOString().slice(0,10); }
+function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 
 let products = loadProducts();
 let reports = loadReports();
@@ -570,7 +570,7 @@ function renderHistory(){
     });
   }
   // 今月の集計
-  const now=new Date(); const ym=now.toISOString().slice(0,7);
+  const now=new Date(); const ym=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
   const thisMonth=reports.filter(r=>r.date.startsWith(ym));
   document.getElementById('totalCount').textContent=thisMonth.length;
   const kgSum=thisMonth.filter(r=>r.unit==='kg').reduce((a,b)=>a+b.qty,0);
