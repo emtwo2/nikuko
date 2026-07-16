@@ -100,12 +100,12 @@
     .printhead{ display:flex; gap:16px; font-size:10.5px; margin-bottom:8px; }
     .printhead span{ border-bottom:1px solid #666; padding:2px 20px 2px 2px; }
     .printcols{ column-gap:6mm; }
-    .printrow{ break-inside:avoid; display:block; padding:3px 0; border-bottom:1px dotted #999; }
-    .printrow .pname{ font-size:8.6px; font-weight:700; line-height:1.25; word-break:break-all; }
-    .printrow .pboxline{ display:flex; align-items:center; gap:4px; margin-top:1.5px; }
-    .printrow .punit{ color:#666; font-size:7.5px; }
-    .printrow .plabel{ color:#555; }
-    .printrow .pbox{ display:inline-block; width:16mm; height:7mm; border:1.3px solid #666; margin-right:4mm; }
+    .printrow{ break-inside:avoid; display:block; padding:4px 0; border-bottom:1px dotted #999; }
+    .printrow .pname{ font-size:9px; font-weight:700; line-height:1.25; word-break:break-all; }
+    .printrow .punit{ color:#666; font-size:7.5px; margin-top:1px; }
+    .printrow .pline{ display:flex; align-items:center; gap:5px; margin-top:2.5px; }
+    .printrow .plabel{ color:#555; font-weight:700; flex:none; width:8px; }
+    .printrow .pbox{ display:block; width:100%; height:8.5mm; border:1.4px solid #666; border-radius:2px; }
   }
 </style>
 </head>
@@ -194,13 +194,23 @@
   <div class="step" id="stepbackup">
     <div class="section-title">バックアップ・復元</div>
     <div class="card">
-      <p class="hint">肉庫帳・惣菜帳・加工帳・出荷帳・ロス帳、全部のデータを1つのファイルにまとめてバックアップ・復元できるで。</p>
+      <p class="hint">肉庫帳・惣菜帳・加工帳・出荷帳・ロス帳、全部のデータを1つのファイルにまとめてバックアップできるで。</p>
       <div style="height:10px"></div>
       <button class="btn" style="background:#333;" onclick="downloadAllBackup()">全アプリのデータをバックアップ</button>
-      <div style="height:14px"></div>
+
+      <div style="height:20px"></div>
+      <p class="hint"><b>マージ復元（おすすめ）</b>：今のデータは消さずに、バックアップの中にあって今の端末にはまだ無い記録だけを追加するで。iPhoneとPCなど、複数端末それぞれで入力してる場合はこっちを使ってな。</p>
+      <div style="height:8px"></div>
+      <input type="file" id="mergeFileInput" accept="application/json" style="display:none;" onchange="mergeAllBackup(event)">
+      <button class="btn" style="background:var(--kako);" onclick="document.getElementById('mergeFileInput').click()">バックアップをマージする</button>
+
+      <div style="height:20px"></div>
+      <p class="hint"><b>上書き復元</b>：今のデータを全部消して、バックアップの内容だけに置き換えるで。他の端末で入力した分が消える可能性があるから、普段はマージ復元を使ってな。</p>
+      <div style="height:8px"></div>
       <input type="file" id="restoreFileInput" accept="application/json" style="display:none;" onchange="restoreAllBackup(event)">
-      <button class="btn ghost" onclick="document.getElementById('restoreFileInput').click()">バックアップから復元する</button>
-      <div style="height:10px"></div>
+      <button class="btn ghost" style="border-color:var(--rosu); color:var(--rosu);" onclick="document.getElementById('restoreFileInput').click()">バックアップで上書き復元する</button>
+
+      <div style="height:14px"></div>
       <button class="btn ghost" onclick="showStep(0)">← 戻る</button>
     </div>
   </div>
@@ -596,6 +606,53 @@ function restoreAllBackup(e){
   reader.readAsText(file);
 }
 
+function mergeArraysById(current, incoming){
+  const idField = incoming.length>0 && incoming[0].key!==undefined ? 'key' : 'id';
+  const existing = new Set(current.map(x=>x[idField]));
+  const toAdd = incoming.filter(x=>!existing.has(x[idField]));
+  return { merged:[...current, ...toAdd], added:toAdd.length };
+}
+function mergeAllBackup(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const data = JSON.parse(reader.result);
+      if(!data.data || typeof data.data !== 'object'){
+        toast('このファイルは管理帳のバックアップやなさそうやで'); e.target.value=''; return;
+      }
+      const when = data.exportedAt ? data.exportedAt.slice(0,10) : '日付不明';
+      const keys = Object.keys(data.data);
+      if(!confirm(`このバックアップ（${when}時点）の内容を、今のデータに追加でマージする？（今のデータは消さへん）`)){ e.target.value=''; return; }
+
+      let totalAdded=0, mergedKeys=0, skippedKeys=0;
+      keys.forEach(k=>{
+        let incomingVal;
+        try{ incomingVal = JSON.parse(data.data[k]); }catch(err){ incomingVal=null; }
+
+        if(Array.isArray(incomingVal)){
+          let current;
+          try{ current = JSON.parse(localStorage.getItem(k) || '[]'); }catch(err){ current=[]; }
+          if(!Array.isArray(current)) current=[];
+          const {merged, added} = mergeArraysById(current, incomingVal);
+          localStorage.setItem(k, JSON.stringify(merged));
+          totalAdded += added;
+          mergedKeys++;
+        } else {
+          /* 担当者名などの単純な文字列は、今の端末の値が空の時だけ採用 */
+          const cur = localStorage.getItem(k);
+          if(!cur){ localStorage.setItem(k, data.data[k]); }
+          skippedKeys++;
+        }
+      });
+      toast(`マージ完了：${totalAdded}件を追加したで（対象${mergedKeys}項目）`);
+    }catch(err){ toast('ファイルの読み込みに失敗したで。JSON形式か確認してな'); }
+    e.target.value='';
+  };
+  reader.readAsText(file);
+}
+
 /* ============================================================
    加工帳の月次出入表
    ============================================================ */
@@ -665,20 +722,17 @@ const PRINT_APP_CONFIG = {
   rosu:   { key:'lossbook_products', title:'ロス帳 ・ 記入用シート' },
 };
 function preparePrintSheetGeneric(items, title){
-  const maxRowsPerCol = 19;
-  const cols = Math.min(4, Math.max(1, Math.ceil(items.length / maxRowsPerCol)));
+  const maxRowsPerCol = 10;
+  const cols = Math.min(3, Math.max(1, Math.ceil(items.length / maxRowsPerCol)));
   let html = `<div class="printtitle">${esc(title)}</div>`;
   html += `<div class="printsub">品目数: ${items.length}</div>`;
   html += `<div class="printhead"><span>日付：　　　　　　</span><span>担当者：　　　　　　</span></div>`;
   html += `<div class="printcols" style="column-count:${cols};">`;
   items.forEach(it=>{
     html += `<div class="printrow">
-      <div class="pname">${esc(it.name)}</div>
-      <div class="pboxline">
-        <span class="punit">${esc(it.unit||'')}</span>
-        <span class="plabel">入</span><span class="pbox"></span>
-        <span class="plabel">出</span><span class="pbox"></span>
-      </div>
+      <div class="pname">${esc(it.name)} <span class="punit">(${esc(it.unit||'')})</span></div>
+      <div class="pline"><span class="plabel">入</span><span class="pbox"></span></div>
+      <div class="pline"><span class="plabel">出</span><span class="pbox"></span></div>
     </div>`;
   });
   html += `</div>`;
