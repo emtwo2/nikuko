@@ -314,7 +314,7 @@ const LS_ITEMS='kakocho_items', LS_PRODUCTION='kakocho_production', LS_SHIPS='ka
 function loadJson(k, fb){ try{ return JSON.parse(localStorage.getItem(k)) ?? fb; }catch(e){ return fb; } }
 function saveJson(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
-function todayStr(){ return new Date().toISOString().slice(0,10); }
+function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function r3(n){ return Math.round(n*1000)/1000; }
 
