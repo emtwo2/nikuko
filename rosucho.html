@@ -309,29 +309,6 @@
       <button class="btn stamp ghost" onclick="addProduct()">商品を追加</button>
     </div>
 
-    <div class="section-title">Notion同期用エクスポート</div>
-    <div class="card">
-      <p class="hint">このアプリはこの端末だけで完結して動くで。写真データは大きいのでエクスポートには含めへん（文字情報だけ）。1日の終わりに未同期の報告をコピーして、LINE等で送ってもらったら、Claudeとのチャットで反映するで。</p>
-      <p style="margin:10px 0 14px;"><span class="num" id="unsyncedCount" style="font-weight:800; font-size:18px;">0</span> 件の未同期報告があります</p>
-      <button class="btn stamp" onclick="doExport()">未同期の報告をコピー</button>
-      <div style="height:10px"></div>
-      <textarea class="exportbox" id="exportBox" placeholder="ここにエクスポート内容が表示されます" readonly></textarea>
-      <div style="height:10px"></div>
-      <button class="btn stamp ghost" id="markSyncedBtn" onclick="markSynced()" disabled>↑ コピーした内容を同期済みにする</button>
-    </div>
-
-    <div class="section-title">バックアップ・復元</div>
-    <div class="card">
-      <p class="hint">写真も含めた全データをバックアップできるで。大幅リニューアルの前や機種変更の時に使ってな（写真が多いとファイルが大きくなることがある）。</p>
-      <div style="height:10px"></div>
-      <button class="btn stamp" onclick="downloadBackup()">全データをバックアップ（ファイル保存）</button>
-      <div class="divider"></div>
-      <p class="hint">バックアップファイルから復元する場合はこちら。今のデータは上書きされるで。</p>
-      <div style="height:10px"></div>
-      <input type="file" id="restoreFileInput" accept="application/json" style="display:none;" onchange="restoreFromFile(event)">
-      <button class="btn stamp ghost" onclick="document.getElementById('restoreFileInput').click()">バックアップから復元する</button>
-    </div>
-
     <div class="section-title">データ管理</div>
     <div class="card">
       <p class="hint">全データを消去します。実行前にバックアップまたはNotion同期を済ませておくことをおすすめします。</p>
@@ -363,9 +340,9 @@
 
 <script>
 /* ---------- バージョン情報 ---------- */
-const APP_VERSION = 'v2';
+const APP_VERSION = 'v3';
 const APP_VERSION_DATE = '2026-07-01';
-const APP_VERSION_NOTE = '初版。商品名・数量(kg/パック/個)・写真・廃棄理由・担当者を記録できるロス報告アプリ';
+const APP_VERSION_NOTE = 'エクスポート・バックアップ機能を「管理帳」アプリに移動。ロス帳は報告入力＋履歴に専念する形に整理。';
 document.getElementById('appVersion').textContent = APP_VERSION;
 document.getElementById('appVersionFull').textContent = `${APP_VERSION}（${APP_VERSION_DATE}）`;
 document.getElementById('appVersionNote').textContent = APP_VERSION_NOTE;
@@ -656,71 +633,6 @@ function deleteProduct(id){
   renderSettings();
 }
 
-/* ---------- エクスポート(文字情報のみ) ---------- */
-function doExport(){
-  const unsynced = reports.filter(r=>!r.synced);
-  if(unsynced.length===0){ toast('未同期の報告はないで'); return; }
-  const records = unsynced.map(r=>({
-    商品: r.product, 数量: r.qty, 単位: r.unit, 理由: r.reason,
-    メモ: r.memo||'', 担当者: r.staff||'', 日付: r.date, 写真: r.photo ? 'あり':'なし'
-  }));
-  const payload = { エクスポート日時: new Date().toLocaleString('ja-JP'), 報告: records };
-  const text = JSON.stringify(payload, null, 2);
-  const box=document.getElementById('exportBox');
-  box.value=text;
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(()=>toast('コピーしたで。LINE等で送るか、Claudeのチャットに貼り付けてな')).catch(()=>{
-      box.select(); toast('自動コピーできんかった。手動で選択してコピーしてな');
-    });
-  } else { box.select(); toast('このテキストを選択してコピーしてな'); }
-  document.getElementById('markSyncedBtn').disabled=false;
-  window._pendingSyncIds = unsynced.map(r=>r.id);
-}
-function markSynced(){
-  if(!window._pendingSyncIds){ toast('先にコピーしてな'); return; }
-  reports = reports.map(r=> window._pendingSyncIds.includes(r.id) ? {...r, synced:true} : r);
-  saveReports(reports);
-  window._pendingSyncIds=null;
-  document.getElementById('markSyncedBtn').disabled=true;
-  document.getElementById('exportBox').value='';
-  toast('同期済みにしたで');
-  refreshBadges(); renderHistory();
-}
-
-/* ---------- バックアップ・復元(写真込み) ---------- */
-function downloadBackup(){
-  const payload = { app:'ロス帳', version:1, exportedAt:new Date().toISOString(), products, staffName:loadStaffName(), reports };
-  const text = JSON.stringify(payload, null, 2);
-  const blob = new Blob([text], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url; a.download=`ロス帳バックアップ_${todayStr()}.json`;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(()=>URL.revokeObjectURL(url), 2000);
-  toast('バックアップファイルを保存したで');
-}
-function restoreFromFile(e){
-  const file=e.target.files[0];
-  if(!file) return;
-  const reader=new FileReader();
-  reader.onload=()=>{
-    try{
-      const data=JSON.parse(reader.result);
-      if(!Array.isArray(data.products) || !Array.isArray(data.reports)){
-        toast('このファイルはロス帳のバックアップやなさそうやで'); e.target.value=''; return;
-      }
-      const when = data.exportedAt ? data.exportedAt.slice(0,10) : '日付不明';
-      if(!confirm(`このバックアップ（${when}時点）で今のデータを上書きする？元に戻せへんで。`)){ e.target.value=''; return; }
-      products=data.products; saveProducts(products);
-      reports=data.reports; saveReports(reports);
-      if(typeof data.staffName==='string'){ saveStaffName(data.staffName); }
-      toast(`${when}時点のバックアップを復元したで`);
-      renderSettings(); renderHistory(); renderProductChips();
-    }catch(err){ toast('ファイルの読み込みに失敗したで。JSON形式か確認してな'); }
-    e.target.value='';
-  };
-  reader.readAsText(file);
-}
 function resetAll(){
   if(!confirm('本当に全データを削除する？元に戻せへんで。')) return;
   if(!confirm('もう一度確認：商品マスタ・報告履歴・写真がすべて消えるで。ええか？')) return;
