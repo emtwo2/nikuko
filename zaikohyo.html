@@ -202,20 +202,21 @@ document.getElementById('appVersion').textContent = APP_VERSION;
 /* ---------- ユーティリティ ---------- */
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function r3(n){ return Math.round(n*1000)/1000; }
-function todayStr(){ return new Date().toISOString().slice(0,10); }
+function fmtDate(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function todayStr(){ return fmtDate(new Date()); }
 function enumerateDates(start, end){
   const dates=[]; let d=new Date(start+'T00:00:00');
   const e=new Date(end+'T00:00:00');
-  while(d<=e){ dates.push(d.toISOString().slice(0,10)); d.setDate(d.getDate()+1); }
+  while(d<=e){ dates.push(fmtDate(d)); d.setDate(d.getDate()+1); }
   return dates;
 }
 function addDays(dateStr, n){
-  const d=new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10);
+  const d=new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+n); return fmtDate(d);
 }
 function monthRange(ym){
   const [y,m]=ym.split('-').map(Number);
   const start=`${ym}-01`;
-  const end=new Date(y, m, 0).toISOString().slice(0,10);
+  const end=fmtDate(new Date(y, m, 0));
   return {start,end};
 }
 function loadJson(k, fb){ try{ return JSON.parse(localStorage.getItem(k)) ?? fb; }catch(e){ return fb; } }
