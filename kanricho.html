@@ -105,7 +105,7 @@
     .printrow .pboxline{ display:flex; align-items:center; gap:4px; margin-top:1.5px; }
     .printrow .punit{ color:#666; font-size:7.5px; }
     .printrow .plabel{ color:#555; }
-    .printrow .pbox{ display:inline-block; width:9mm; height:3.6mm; border:1px solid #888; margin-right:3mm; }
+    .printrow .pbox{ display:inline-block; width:16mm; height:7mm; border:1.3px solid #666; margin-right:4mm; }
   }
 </style>
 </head>
@@ -665,7 +665,7 @@ const PRINT_APP_CONFIG = {
   rosu:   { key:'lossbook_products', title:'ロス帳 ・ 記入用シート' },
 };
 function preparePrintSheetGeneric(items, title){
-  const maxRowsPerCol = 26;
+  const maxRowsPerCol = 19;
   const cols = Math.min(4, Math.max(1, Math.ceil(items.length / maxRowsPerCol)));
   let html = `<div class="printtitle">${esc(title)}</div>`;
   html += `<div class="printsub">品目数: ${items.length}</div>`;
