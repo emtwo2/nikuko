@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="管理帳">
+<title>管理帳 - データ管理センター</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --paper:#EFEDE7; --card:#FBFAF7; --ink:#211F1C; --ink-soft:#6b665c; --line:#CBC6BA;
+    --stamp:#555; --stamp-soft:#EAEAEA;
+    --nikuko:#4B2E58; --sozai:#B5651D; --kako:#2E5844; --shukka:#1F6E71; --rosu:#AA3A2E;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; overflow-x:hidden; width:100%;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN",system-ui,sans-serif;
+    padding-bottom:40px;
+  }
+  header.app{
+    padding:calc(env(safe-area-inset-top) + 16px) 20px 14px;
+    background:var(--paper); border-bottom:1px solid var(--line);
+  }
+  header.app h1{ font-size:20px; margin:0; font-weight:800; }
+  header.app .sub{ font-size:11.5px; color:var(--ink-soft); margin-top:2px; }
+  main{ padding:16px; max-width:640px; margin:0 auto; }
+  .section-title{
+    font-size:12px; font-weight:800; letter-spacing:.1em; color:var(--stamp);
+    text-transform:uppercase; margin:20px 0 8px;
+  }
+  .section-title:first-child{ margin-top:0; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:12px; }
+  label.field{ display:block; margin-bottom:14px; }
+  label.field .lbl{ display:block; font-size:12.5px; color:var(--ink-soft); margin-bottom:6px; font-weight:600; }
+  select,input[type=text],input[type=month]{
+    width:100%; font-size:16px; padding:11px 12px; border-radius:10px;
+    border:1.4px solid var(--line); background:#fff; color:var(--ink); font-family:inherit;
+  }
+  input[type=month]{ -webkit-appearance:none; appearance:none; }
+  .btn{
+    width:100%; padding:15px; border-radius:12px; border:none; font-size:16px;
+    font-weight:800; color:#fff; background:var(--stamp);
+  }
+  .btn.ghost{ background:transparent; color:var(--stamp); border:1.6px solid var(--stamp); font-weight:700; }
+  .btn:disabled{ background:var(--line); color:#8a8578; }
+  .hint{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; }
+  .toast{
+    position:fixed; left:50%; bottom:30px; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:#fff; padding:12px 20px; border-radius:30px;
+    font-size:14px; font-weight:600; opacity:0; pointer-events:none; z-index:50;
+    transition:all .25s ease; max-width:85%; text-align:center;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .step{ display:none; }
+  .step.active{ display:block; }
+  textarea.exportbox{
+    width:100%; height:180px; font-family:ui-monospace,monospace; font-size:11.5px;
+    background:#fff; border:1.4px solid var(--line); border-radius:10px; padding:10px; resize:vertical;
+  }
+  table.report{ width:100%; border-collapse:collapse; font-size:12px; }
+  table.report th, table.report td{ border-bottom:1px solid var(--line); padding:8px 4px; text-align:right; white-space:nowrap; }
+  table.report th{ font-size:10.5px; color:var(--ink-soft); font-weight:700; }
+  table.report th:first-child, table.report td:first-child{ text-align:left; }
+  .tablewrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+
+  .catrow{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:12px 14px; background:#fff; border:1px solid var(--line); border-radius:12px; margin-bottom:8px;
+  }
+  .catrow .cname{ font-weight:700; font-size:14.5px; flex:1; }
+  .catrow .ccount{ font-size:11px; color:var(--ink-soft); }
+  .segchips{ display:flex; gap:4px; }
+  .segchips button{
+    padding:8px 10px; border-radius:8px; border:1.4px solid var(--line); background:#fff;
+    font-size:12px; font-weight:700; color:var(--ink-soft);
+  }
+  .segchips button.on.t-nikuko{ background:var(--nikuko); border-color:var(--nikuko); color:#fff; }
+  .segchips button.on.t-sozai{ background:var(--sozai); border-color:var(--sozai); color:#fff; }
+  .segchips button.on.t-skip{ background:#8a8578; border-color:#8a8578; color:#fff; }
+  .summarybar{
+    display:flex; justify-content:space-around; text-align:center;
+    background:var(--stamp-soft); border-radius:12px; padding:12px; margin-bottom:14px;
+  }
+  .summarybar .v{ font-size:20px; font-weight:800; }
+  .summarybar .l{ font-size:10.5px; color:var(--ink-soft); font-weight:700; margin-top:2px; }
+
+  /* ---------- 記入用シート印刷 ---------- */
+  #printArea{ display:none; }
+  @media print{
+    @page{ size: A4 portrait; margin: 12mm; }
+    body *{ visibility:hidden; }
+    #printArea, #printArea *{ visibility:visible; }
+    #printArea{ display:block; position:absolute; top:0; left:0; width:100%; }
+    .printtitle{ font-size:15px; font-weight:800; margin:0 0 4px; color:#000; }
+    .printsub{ font-size:10px; color:#333; margin:0 0 4px; }
+    .printhead{ display:flex; gap:16px; font-size:10.5px; margin-bottom:8px; }
+    .printhead span{ border-bottom:1px solid #666; padding:2px 20px 2px 2px; }
+    .printcols{ column-gap:6mm; }
+    .printrow{ break-inside:avoid; display:block; padding:3px 0; border-bottom:1px dotted #999; }
+    .printrow .pname{ font-size:8.6px; font-weight:700; line-height:1.25; word-break:break-all; }
+    .printrow .pboxline{ display:flex; align-items:center; gap:4px; margin-top:1.5px; }
+    .printrow .punit{ color:#666; font-size:7.5px; }
+    .printrow .plabel{ color:#555; }
+    .printrow .pbox{ display:inline-block; width:9mm; height:3.6mm; border:1px solid #888; margin-right:3mm; }
+  }
+</style>
+</head>
+<body>
+
+<header class="app">
+  <h1>管理帳</h1>
+  <div class="sub">データの取り込み・書き出し・バックアップを1ヶ所に</div>
+</header>
+
+<main>
+
+  <!-- Step0: メインメニュー -->
+  <div class="step active" id="step0">
+    <div class="section-title">取り込む</div>
+    <div class="card">
+      <button class="btn" onclick="showStep(1)">品目マスタを取り込む（Excel/CSV）</button>
+      <div style="height:10px"></div>
+      <button class="btn" style="background:var(--sozai);" onclick="showStep('daily')">日々の入数・出数（手書き集計）</button>
+      <div style="height:10px"></div>
+      <button class="btn" style="background:var(--rosu);" onclick="showStep('loss')">ロス帳のデータを加工帳へ</button>
+    </div>
+
+    <div class="section-title">書き出す</div>
+    <div class="card">
+      <button class="btn" style="background:#333;" onclick="showStep('export')">未同期の記録をエクスポート</button>
+      <div style="height:10px"></div>
+      <button class="btn ghost" onclick="showStep('backup')">バックアップ・復元</button>
+      <div style="height:10px"></div>
+      <button class="btn ghost" onclick="showStep('print')">記入用シートを印刷する</button>
+    </div>
+
+    <div class="section-title">見る</div>
+    <div class="card">
+      <button class="btn" style="background:var(--kako);" onclick="showStep('report')">加工帳の月次出入表</button>
+    </div>
+  </div>
+
+  <!-- DailyStep: 日々の入出数(手書き集計)取込 -->
+  <div class="step" id="stepdaily">
+    <div class="section-title">日々の入数・出数を取り込む</div>
+    <div class="card">
+      <p class="hint">記入した紙を写真に撮ってClaudeに送ると、この形式のJSONで返してくれるで。品目名で自動的に肉庫帳／惣菜帳／加工帳／出荷帳のどれかを判定して振り分けるから、混ざってても1回で貼り付けてOK。区分は「納品/入荷」＝入り、「出庫/出荷」＝出、どっちの表記でも通るで。加工品の場合は「入り」→加工帳の入庫、「出」→出荷帳の出荷、に振り分けられるで。</p>
+      <div style="height:8px"></div>
+      <textarea class="exportbox" id="dailyImportBox" placeholder='{"記録":[{"区分":"納品","品目":"ロース","数量":8,"日付":"2026-07-15"}]}'></textarea>
+      <div style="height:10px"></div>
+      <button class="btn" onclick="importDaily()">この内容を取り込む</button>
+      <div style="height:10px"></div>
+      <button class="btn ghost" onclick="showStep(0)">← 戻る</button>
+      <p class="hint" id="dailyResult" style="margin-top:14px;"></p>
+    </div>
+  </div>
+
+  <!-- LossStep: ロス帳→加工帳月次取込 -->
+  <div class="step" id="steploss">
+    <div class="section-title">ロス帳のデータを加工帳へ取り込む</div>
+    <div class="card">
+      <p class="hint">ロス帳の「未同期の報告をコピー」で出したJSONを下に貼り付けると、加工帳の月次表・在庫計算にロス分が反映されるで。同じ内容は二重取り込みされへん。</p>
+      <div style="height:8px"></div>
+      <textarea class="exportbox" id="lossImportBox" placeholder='{"報告":[...]}'></textarea>
+      <div style="height:10px"></div>
+      <button class="btn" style="background:var(--rosu);" onclick="importLoss()">ロスJSONを取り込む</button>
+      <div style="height:10px"></div>
+      <button class="btn ghost" onclick="showStep(0)">← 戻る</button>
+      <p class="hint" style="margin-top:10px;">取込済みロス: <span class="num" id="lossCount">0</span>件</p>
+    </div>
+  </div>
+
+  <!-- ExportStep: 全アプリまとめてエクスポート -->
+  <div class="step" id="stepexport">
+    <div class="section-title">未同期の記録をエクスポート</div>
+    <div class="card">
+      <p class="hint">肉庫帳・惣菜帳・加工帳・出荷帳・ロス帳、それぞれの未同期記録をまとめて1回でコピーできるで。LINE等で送って、Claudeに集計してもらってな。</p>
+      <p style="margin:10px 0 14px;"><span class="num" id="exportUnsyncedCount" style="font-weight:800; font-size:18px;">0</span> 件の未同期記録があります</p>
+      <button class="btn" style="background:#333;" onclick="doExportAll()">未同期の記録をまとめてコピー</button>
+      <div style="height:10px"></div>
+      <textarea class="exportbox" id="exportBox" readonly></textarea>
+      <div style="height:10px"></div>
+      <button class="btn ghost" id="markSyncedBtn" onclick="markSyncedAll()" disabled>↑ コピーした内容を同期済みにする</button>
+      <div style="height:10px"></div>
+      <button class="btn ghost" onclick="showStep(0)">← 戻る</button>
+    </div>
+  </div>
+
+  <!-- BackupStep: バックアップ・復元 -->
+  <div class="step" id="stepbackup">
+    <div class="section-title">バックアップ・復元</div>
+    <div class="card">
+      <p class="hint">肉庫帳・惣菜帳・加工帳・出荷帳・ロス帳、全部のデータを1つのファイルにまとめてバックアップ・復元できるで。</p>
+      <div style="height:10px"></div>
+      <button class="btn" style="background:#333;" onclick="downloadAllBackup()">全アプリのデータをバックアップ</button>
+      <div style="height:14px"></div>
+      <input type="file" id="restoreFileInput" accept="application/json" style="display:none;" onchange="restoreAllBackup(event)">
+      <button class="btn ghost" onclick="document.getElementById('restoreFileInput').click()">バックアップから復元する</button>
+      <div style="height:10px"></div>
+      <button class="btn ghost" onclick="showStep(0)">← 戻る</button>
+    </div>
+  </div>
+
+  <!-- ReportStep: 加工帳の月次出入表 -->
+  <div class="step" id="stepreport">
+    <div class="section-title">加工帳の月次出入表</div>
+    <div class="card">
+      <label class="field">
+        <span class="lbl">対象月</span>
+        <input type="month" id="reportMonth" onchange="renderReport()">
+      </label>
+      <div class="tablewrap">
+        <table class="report" id="reportTable"></table>
+      </div>
+      <div style="height:12px"></div>
+      <button class="btn ghost" onclick="downloadReportCsv()">CSVをダウンロード</button>
+      <div style="height:10px"></div>
+      <button class="btn ghost" onclick="showStep(0)">← 戻る</button>
+    </div>
+  </div>
+
+  <!-- StepPrint: 記入用シート印刷(アプリ選択) -->
+  <div class="step" id="stepprint">
+    <div class="section-title">どのアプリの品目を印刷する？</div>
+    <div class="card">
+      <p class="hint">品目マスタの一覧を、手書きで数を書き込める空欄シートとして印刷できるで。品目数に応じて自動で列数を調整して、必ずA4 1枚に収まるようにしてる。</p>
+      <div style="height:10px"></div>
+      <button class="btn" style="background:var(--nikuko);" onclick="printAppSheet('nikuko')">肉庫帳</button>
+      <div style="height:10px"></div>
+      <button class="btn" style="background:var(--sozai);" onclick="printAppSheet('sozai')">惣菜帳</button>
+      <div style="height:10px"></div>
+      <button class="btn" style="background:var(--shukka);" onclick="printAppSheet('kako')">加工品（加工帳・出荷帳 共通）</button>
+      <div style="height:10px"></div>
+      <button class="btn" style="background:var(--rosu);" onclick="printAppSheet('rosu')">ロス帳</button>
+      <div style="height:10px"></div>
+      <button class="btn ghost" onclick="showStep(0)">← 戻る</button>
+    </div>
+  </div>
+
+  <!-- Step1: ファイルを選ぶ(品目マスタExcel取込) -->
+  <div class="step" id="step1">
+    <div class="section-title">Step1｜ファイルを選ぶ</div>
+    <div class="card">
+      <p class="hint">品目名（と、あればカテゴリ・単位）が入ったExcel(.xlsx)・CSVファイルを選んでな。SKUマスタなど、複数カテゴリが混ざったファイルでもそのまま使えるで。</p>
+      <div style="height:10px"></div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="onFileSelected(event)">
+      <button class="btn" onclick="document.getElementById('fileInput').click()">Excel/CSVファイルを選ぶ</button>
+      <div style="height:10px"></div>
+      <button class="btn ghost" onclick="showStep(0)">← 戻る</button>
+    </div>
+  </div>
+
+  <!-- Step2: 列マッピング -->
+  <div class="step" id="step2">
+    <div class="section-title">Step2｜列を選ぶ</div>
+    <div class="card">
+      <label class="field">
+        <span class="lbl">品目名の列</span>
+        <select id="colName" onchange="onMapChange()"></select>
+      </label>
+      <label class="field">
+        <span class="lbl">単位の列（任意）</span>
+        <select id="colUnit" onchange="onMapChange()">
+          <option value="">使わない（すべて kg 扱い）</option>
+        </select>
+      </label>
+      <label class="field">
+        <span class="lbl">カテゴリの列（任意・あるとカテゴリごとに振り分け先を選べる）</span>
+        <select id="colCategory" onchange="onCategoryColChange()">
+          <option value="">使わない（全件まとめて1つの振り分け先にする）</option>
+        </select>
+      </label>
+      <div id="noCatWrap">
+        <label class="field">
+          <span class="lbl">カテゴリ列を使わない場合、全件を</span>
+          <div class="segchips" id="noCatChips">
+            <button type="button" class="on t-nikuko" data-t="nikuko">肉庫帳へ</button>
+            <button type="button" class="t-sozai" data-t="sozai">惣菜帳へ</button>
+            <button type="button" class="t-skip" data-t="skip">除外</button>
+          </div>
+        </label>
+      </div>
+      <button class="btn" onclick="goStep3()">次へ（振り分け確認）</button>
+    </div>
+  </div>
+
+  <!-- Step3: カテゴリ別振り分け -->
+  <div class="step" id="step3">
+    <div class="section-title">Step3｜カテゴリごとの振り分け先</div>
+    <div class="card">
+      <p class="hint">各カテゴリごとに「肉庫帳」「惣菜帳」「除外」を選んでな。紫＝肉庫帳、オレンジ＝惣菜帳、グレー＝取り込まない。</p>
+      <div style="height:10px"></div>
+      <div id="categoryList"></div>
+    </div>
+    <button class="btn" onclick="goStep4()">次へ（内容確認）</button>
+  </div>
+
+  <!-- Step4: 確認・実行 -->
+  <div class="step" id="step4">
+    <div class="section-title">Step4｜内容を確認して取り込む</div>
+    <div class="card">
+      <div class="summarybar">
+        <div><div class="v num" id="sumNikuko" style="color:var(--nikuko);">0</div><div class="l">肉庫帳へ</div></div>
+        <div><div class="v num" id="sumSozai" style="color:var(--sozai);">0</div><div class="l">惣菜帳へ</div></div>
+        <div><div class="v num" id="sumSkip" style="color:#8a8578;">0</div><div class="l">除外</div></div>
+      </div>
+      <p class="hint">同じ品目名がすでに登録済みの場合は自動でスキップされるで（重複登録の心配なし）。</p>
+      <div style="height:10px"></div>
+      <button class="btn" onclick="confirmImport()">この内容で取り込む</button>
+      <div style="height:8px"></div>
+      <button class="btn ghost" onclick="showStep(3)">← カテゴリ選びに戻る</button>
+    </div>
+  </div>
+
+  <!-- Step5: 完了 -->
+  <div class="step" id="step5">
+    <div class="section-title">完了</div>
+    <div class="card">
+      <p class="hint" id="resultText" style="font-size:14px; color:var(--ink);"></p>
+      <div style="height:10px"></div>
+      <a class="btn" style="display:block; text-align:center; text-decoration:none;" href="./index.html">玄関ページに戻る</a>
+      <div style="height:8px"></div>
+      <button class="btn ghost" onclick="location.reload()">もう一度、別のファイルを取り込む</button>
+    </div>
+  </div>
+
+</main>
+
+<div class="toast" id="toast"></div>
+<div id="printArea"></div>
+
+<script>
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function r3(n){ return Math.round(n*1000)/1000; }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+
+let toastTimer=null;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'), 2400);
+}
+function showStep(n){
+  document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
+  document.getElementById('step'+n).classList.add('active');
+  if(n==='export') renderExportCount();
+  if(n==='report'){ if(!document.getElementById('reportMonth').value) document.getElementById('reportMonth').value = todayStr().slice(0,7); renderReport(); }
+  if(n==='loss') updateLossCount();
+}
+
+function loadAppItems(key){ try{ const v=JSON.parse(localStorage.getItem(key)); return Array.isArray(v)?v:[]; }catch(e){ return []; } }
+function saveAppItems(key, v){ localStorage.setItem(key, JSON.stringify(v)); }
+function loadAppLogs(key){ try{ const v=JSON.parse(localStorage.getItem(key)); return Array.isArray(v)?v:[]; }catch(e){ return []; } }
+function saveAppLogs(key, v){ localStorage.setItem(key, JSON.stringify(v)); }
+
+/* ============================================================
+   日々の入数・出数(手書き集計)取込
+   ============================================================ */
+function importDaily(){
+  const text=document.getElementById('dailyImportBox').value.trim();
+  if(!text){ toast('JSONを貼り付けてな'); return; }
+  let data;
+  try{ data=JSON.parse(text); }catch(e){ toast('JSONの形式が読めへんかったわ'); return; }
+  const records = data.記録 || data.records || [];
+  if(!Array.isArray(records) || records.length===0){ toast('記録データが見つからへんで'); return; }
+
+  const nikukoItems = loadAppItems('nikukocho_items');
+  const sozaiItems = loadAppItems('sozaicho_items');
+  const kakoItems = loadAppItems('kakocho_items');
+  let nikukoLogs = loadAppLogs('nikukocho_logs');
+  let sozaiLogs = loadAppLogs('sozaicho_logs');
+  let kakoShips = loadAppLogs('kakocho_ships');
+  let kakoProduction = loadAppLogs('kakocho_production');
+
+  let addedN=0, addedS=0, addedKin=0, addedKout=0, dup=0, unknown=0, invalid=0;
+
+  records.forEach(r=>{
+    const name=r.品目, qty=parseFloat(r.数量), date=r.日付, kubun=r.区分;
+    if(!name || !qty || !date || !kubun){ invalid++; return; }
+    const type = ['納品','入荷'].includes(kubun) ? 'in' : (['出庫','出荷'].includes(kubun) ? 'out' : null);
+    if(!type){ invalid++; return; }
+
+    let it = nikukoItems.find(i=>i.name===name);
+    if(it){
+      const key=`hw|${date}|${it.id}|${qty}|${type}`;
+      if(nikukoLogs.find(l=>l.hwKey===key)){ dup++; return; }
+      const rec={id:uid(), type, itemId:it.id, qty, date, ts:Date.now(), synced:false, hwKey:key};
+      if(type==='in'){ rec.price=r.単価||0; rec.supplier=r.仕入先||''; } else { rec.reason=r.理由||'使用'; }
+      nikukoLogs.push(rec); addedN++; return;
+    }
+    it = sozaiItems.find(i=>i.name===name);
+    if(it){
+      const key=`hw|${date}|${it.id}|${qty}|${type}`;
+      if(sozaiLogs.find(l=>l.hwKey===key)){ dup++; return; }
+      const rec={id:uid(), type, itemId:it.id, qty, date, ts:Date.now(), synced:false, hwKey:key};
+      if(type==='in'){ rec.price = it.price||0; } else { rec.reason='出荷'; }
+      sozaiLogs.push(rec); addedS++; return;
+    }
+    it = kakoItems.find(i=>i.name===name);
+    if(it){
+      const key=`hw|${date}|${it.id}|${qty}|${type}`;
+      if(type==='in'){
+        if(kakoProduction.find(p=>p.hwKey===key)){ dup++; return; }
+        kakoProduction.push({id:uid(), itemId:it.id, qty, staff:'', date, ts:Date.now(), synced:false, hwKey:key});
+        addedKin++; return;
+      } else {
+        if(kakoShips.find(s=>s.hwKey===key)){ dup++; return; }
+        kakoShips.push({id:uid(), itemId:it.id, qty, dest:'', date, ts:Date.now(), synced:false, hwKey:key});
+        addedKout++; return;
+      }
+    }
+    unknown++;
+  });
+
+  saveAppLogs('nikukocho_logs', nikukoLogs);
+  saveAppLogs('sozaicho_logs', sozaiLogs);
+  saveAppLogs('kakocho_ships', kakoShips);
+  saveAppLogs('kakocho_production', kakoProduction);
+
+  document.getElementById('dailyImportBox').value='';
+  let msg = `肉庫帳: ${addedN}件 ／ 惣菜帳: ${addedS}件 ／ 加工品入庫: ${addedKin}件 ／ 加工品出荷: ${addedKout}件 を記録したで`;
+  if(dup) msg += `（重複${dup}件スキップ）`;
+  if(unknown) msg += `（品目不一致${unknown}件、品目マスタの名前と合ってるか確認してな）`;
+  if(invalid) msg += `（データ不足${invalid}件）`;
+  document.getElementById('dailyResult').textContent = msg;
+  toast('取り込み完了');
+}
+
+/* ============================================================
+   ロス帳→加工帳 月次取込
+   ============================================================ */
+function updateLossCount(){
+  const losses = loadAppLogs('kakocho_losses');
+  document.getElementById('lossCount').textContent = losses.length;
+}
+function importLoss(){
+  const text=document.getElementById('lossImportBox').value.trim();
+  if(!text){ toast('JSONを貼り付けてな'); return; }
+  let data;
+  try{ data=JSON.parse(text); }catch(e){ toast('JSONの形式が読めへんかったわ'); return; }
+  const reports = data.報告 || data.records || [];
+  if(!Array.isArray(reports) || reports.length===0){ toast('報告データが見つからへんで'); return; }
+  const kakoItems = loadAppItems('kakocho_items');
+  let losses = loadAppLogs('kakocho_losses');
+  let added=0, skippedDup=0, skippedUnknown=0, skippedUnit=0;
+  reports.forEach(r=>{
+    const name=r.商品, qty=parseFloat(r.数量), unit=r.単位, date=r.日付, reason=r.理由||'';
+    if(!name || !qty || !date) return;
+    if(unit && unit!=='kg'){ skippedUnit++; return; }
+    const it=kakoItems.find(i=>i.name===name);
+    if(!it){ skippedUnknown++; return; }
+    const key=`${date}|${name}|${qty}|${reason}`;
+    if(losses.find(l=>l.key===key)){ skippedDup++; return; }
+    losses.push({key, itemId:it.id, itemName:name, qty, reason, date});
+    added++;
+  });
+  saveAppLogs('kakocho_losses', losses);
+  document.getElementById('lossImportBox').value='';
+  let msg=`${added}件取り込んだで`;
+  if(skippedDup) msg+=`（重複${skippedDup}件スキップ）`;
+  if(skippedUnknown) msg+=`（品目不一致${skippedUnknown}件）`;
+  if(skippedUnit) msg+=`（kg以外${skippedUnit}件）`;
+  toast(msg);
+  updateLossCount();
+}
+
+/* ============================================================
+   全アプリまとめてエクスポート
+   ============================================================ */
+function collectAllUnsynced(){
+  const groups = [];
+  const nikukoItems = loadAppItems('nikukocho_items');
+  const nikukoLogs = loadAppLogs('nikukocho_logs');
+  nikukoLogs.filter(l=>!l.synced).forEach(l=>{
+    const it = nikukoItems.find(i=>i.id===l.itemId);
+    const rec = {アプリ:'肉庫帳', 区分: l.type==='in'?'納品':'出庫', 品目:it?.name||'(削除済み)', 数量:l.qty, 単位:it?.unit||'kg', 日付:l.date};
+    if(l.type==='in'){ rec.単価=l.price||0; rec.仕入先=l.supplier||''; } else { rec.理由=l.reason||''; }
+    groups.push({storeKey:'nikukocho_logs', id:l.id, record:rec});
+  });
+  const sozaiItems = loadAppItems('sozaicho_items');
+  const sozaiLogs = loadAppLogs('sozaicho_logs');
+  sozaiLogs.filter(l=>!l.synced).forEach(l=>{
+    const it = sozaiItems.find(i=>i.id===l.itemId);
+    const rec = {アプリ:'惣菜帳', 区分: l.type==='in'?'入荷':'出荷', 品目:it?.name||'(削除済み)', 数量:l.qty, 単位:it?.unit||'個'};
+    rec.日付 = l.date;
+    if(l.type==='in'){ rec.単価=l.price||0; } else { rec.理由=l.reason||''; }
+    groups.push({storeKey:'sozaicho_logs', id:l.id, record:rec});
+  });
+  const kakoItems = loadAppItems('kakocho_items');
+  const kakoProduction = loadAppLogs('kakocho_production');
+  kakoProduction.filter(p=>!p.synced).forEach(p=>{
+    const it = kakoItems.find(i=>i.id===p.itemId);
+    groups.push({storeKey:'kakocho_production', id:p.id, record:{アプリ:'加工帳', 区分:'入庫', 品目:it?.name||'(削除済み)', 数量:p.qty, 単位:it?.unit||'kg', 日付:p.date, 担当者:p.staff||''}});
+  });
+  const kakoShips = loadAppLogs('kakocho_ships');
+  kakoShips.filter(s=>!s.synced).forEach(s=>{
+    const it = kakoItems.find(i=>i.id===s.itemId);
+    groups.push({storeKey:'kakocho_ships', id:s.id, record:{アプリ:'出荷帳', 区分:'出荷', 品目:it?.name||'(削除済み)', 数量:s.qty, 単位:it?.unit||'kg', 日付:s.date, 出荷先:s.dest||''}});
+  });
+  const rosuProducts = loadAppItems('lossbook_products');
+  const rosuReports = loadAppLogs('lossbook_reports');
+  rosuReports.filter(r=>!r.synced).forEach(r=>{
+    groups.push({storeKey:'lossbook_reports', id:r.id, record:{アプリ:'ロス帳', 区分:'廃棄', 品目:r.product||'(削除済み)', 数量:r.qty, 単位:r.unit||'', 日付:r.date, 理由:r.reason||''}});
+  });
+  return groups;
+}
+function renderExportCount(){
+  document.getElementById('exportUnsyncedCount').textContent = collectAllUnsynced().length;
+}
+function doExportAll(){
+  const groups = collectAllUnsynced();
+  if(groups.length===0){ toast('未同期の記録はないで'); return; }
+  const payload = { app:'管理帳（全アプリまとめ）', エクスポート日時:new Date().toLocaleString('ja-JP'), 記録: groups.map(g=>g.record) };
+  const text = JSON.stringify(payload, null, 2);
+  const box = document.getElementById('exportBox');
+  box.value = text;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>toast('コピーしたで。LINE等で送るか、Claudeのチャットに貼り付けてな')).catch(()=>{
+      box.select(); toast('自動コピーできんかった。手動で選択してコピーしてな');
+    });
+  } else { box.select(); toast('このテキストを選択してコピーしてな'); }
+  document.getElementById('markSyncedBtn').disabled=false;
+  window._pendingAll = groups;
+}
+function markSyncedAll(){
+  if(!window._pendingAll){ toast('先にコピーしてな'); return; }
+  const byStore = {};
+  window._pendingAll.forEach(g=>{
+    if(!byStore[g.storeKey]) byStore[g.storeKey]=[];
+    byStore[g.storeKey].push(g.id);
+  });
+  Object.entries(byStore).forEach(([storeKey, ids])=>{
+    let arr = loadAppLogs(storeKey);
+    arr = arr.map(x=> ids.includes(x.id) ? {...x, synced:true} : x);
+    saveAppLogs(storeKey, arr);
+  });
+  window._pendingAll=null;
+  document.getElementById('markSyncedBtn').disabled=true;
+  document.getElementById('exportBox').value='';
+  toast('同期済みにしたで');
+  renderExportCount();
+}
+
+/* ============================================================
+   バックアップ・復元(全アプリ)
+   ============================================================ */
+const BACKUP_KEYS = [
+  'nikukocho_items','nikukocho_logs','nikukocho_staffname',
+  'sozaicho_items','sozaicho_logs','sozaicho_staffname',
+  'kakocho_items','kakocho_production','kakocho_losses','kakocho_staffname',
+  'kakocho_ships','shukkacho_staffname',
+  'lossbook_products','lossbook_reports','lossbook_staffname',
+];
+function downloadAllBackup(){
+  const bundle = {};
+  let count=0;
+  BACKUP_KEYS.forEach(k=>{
+    const raw = localStorage.getItem(k);
+    if(raw!==null){ bundle[k]=raw; count++; }
+  });
+  if(count===0){ toast('バックアップできるデータがまだないで'); return; }
+  const payload = { app:'管理帳バックアップ', version:1, exportedAt:new Date().toISOString(), data:bundle };
+  const text = JSON.stringify(payload, null, 2);
+  const blob = new Blob([text], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `全アプリバックアップ_${todayStr()}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  toast(`${count}項目をバックアップしたで`);
+}
+function restoreAllBackup(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const data = JSON.parse(reader.result);
+      if(!data.data || typeof data.data !== 'object'){
+        toast('このファイルは管理帳のバックアップやなさそうやで'); e.target.value=''; return;
+      }
+      const when = data.exportedAt ? data.exportedAt.slice(0,10) : '日付不明';
+      const keys = Object.keys(data.data);
+      if(!confirm(`このバックアップ（${when}時点・${keys.length}項目）で今のデータを上書きする？元に戻せへんで。`)){ e.target.value=''; return; }
+      keys.forEach(k=>{ localStorage.setItem(k, data.data[k]); });
+      toast(`${when}時点のバックアップを復元したで（${keys.length}項目）`);
+    }catch(err){ toast('ファイルの読み込みに失敗したで。JSON形式か確認してな'); }
+    e.target.value='';
+  };
+  reader.readAsText(file);
+}
+
+/* ============================================================
+   加工帳の月次出入表
+   ============================================================ */
+function prevMonthEnd(ym){
+  const [y,m]=ym.split('-').map(Number);
+  const d=new Date(y, m-1, 0);
+  return d.toISOString().slice(0,10);
+}
+function kakoStockFor(itemId, until, production, ships, losses){
+  let q=0;
+  production.forEach(p=>{ if(p.itemId===itemId && (!until || p.date<=until)) q+=p.qty; });
+  ships.forEach(s=>{ if(s.itemId===itemId && (!until || s.date<=until)) q-=s.qty; });
+  losses.forEach(l=>{ if(l.itemId===itemId && (!until || l.date<=until)) q-=l.qty; });
+  return r3(q);
+}
+function kakoMovedInMonth(itemId, ym, production, ships, losses){
+  let inQ=0, ship=0, loss=0;
+  production.forEach(p=>{ if(p.itemId===itemId && p.date.startsWith(ym)) inQ+=p.qty; });
+  ships.forEach(s=>{ if(s.itemId===itemId && s.date.startsWith(ym)) ship+=s.qty; });
+  losses.forEach(l=>{ if(l.itemId===itemId && l.date.startsWith(ym)) loss+=l.qty; });
+  return {inQ:r3(inQ), ship:r3(ship), loss:r3(loss)};
+}
+let lastReportRows=[];
+function renderReport(){
+  const ym=document.getElementById('reportMonth').value;
+  const table=document.getElementById('reportTable');
+  if(!ym){ table.innerHTML='<tr><td>対象月を選んでな</td></tr>'; return; }
+  const items = loadAppItems('kakocho_items');
+  const production = loadAppLogs('kakocho_production');
+  const ships = loadAppLogs('kakocho_ships');
+  const losses = loadAppLogs('kakocho_losses');
+  const pe=prevMonthEnd(ym);
+  lastReportRows=[];
+  if(items.length===0){ table.innerHTML='<tr><td>加工帳にまだ品目が登録されてへんで</td></tr>'; return; }
+  let html='<tr><th>品目</th><th>前月繰越</th><th>入庫＋</th><th>出荷−</th><th>ロス−</th><th>月末在庫</th></tr>';
+  items.forEach(it=>{
+    const u=it.unit||'kg';
+    const carry=kakoStockFor(it.id, pe, production, ships, losses);
+    const mv=kakoMovedInMonth(it.id, ym, production, ships, losses);
+    const end=r3(carry+mv.inQ-mv.ship-mv.loss);
+    lastReportRows.push({name:it.name, unit:u, carry, inQ:mv.inQ, ship:mv.ship, loss:mv.loss, end});
+    html+=`<tr><td>${esc(it.name)}</td><td class="num">${carry}</td><td class="num">${mv.inQ}</td><td class="num">${mv.ship}</td><td class="num">${mv.loss}</td><td class="num" style="font-weight:800;">${end}</td></tr>`;
+  });
+  table.innerHTML=html;
+}
+function downloadReportCsv(){
+  const ym=document.getElementById('reportMonth').value;
+  if(!ym || lastReportRows.length===0){ toast('先に対象月を選んでな'); return; }
+  let csv='\uFEFF品目,単位,前月繰越,入庫,出荷,ロス,月末在庫\n';
+  lastReportRows.forEach(r=>{ csv+=`${r.name},${r.unit},${r.carry},${r.inQ},${r.ship},${r.loss},${r.end}\n`; });
+  const blob=new Blob([csv], {type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`加工品出入表_${ym}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  toast('CSVを保存したで');
+}
+
+/* ============================================================
+   記入用シート印刷(アプリ横断)
+   ============================================================ */
+const PRINT_APP_CONFIG = {
+  nikuko: { key:'nikukocho_items', title:'肉庫帳 ・ 記入用シート' },
+  sozai:  { key:'sozaicho_items',  title:'惣菜帳 ・ 記入用シート' },
+  kako:   { key:'kakocho_items',   title:'加工品（加工帳・出荷帳 共通） ・ 記入用シート' },
+  rosu:   { key:'lossbook_products', title:'ロス帳 ・ 記入用シート' },
+};
+function preparePrintSheetGeneric(items, title){
+  const maxRowsPerCol = 26;
+  const cols = Math.min(4, Math.max(1, Math.ceil(items.length / maxRowsPerCol)));
+  let html = `<div class="printtitle">${esc(title)}</div>`;
+  html += `<div class="printsub">品目数: ${items.length}</div>`;
+  html += `<div class="printhead"><span>日付：　　　　　　</span><span>担当者：　　　　　　</span></div>`;
+  html += `<div class="printcols" style="column-count:${cols};">`;
+  items.forEach(it=>{
+    html += `<div class="printrow">
+      <div class="pname">${esc(it.name)}</div>
+      <div class="pboxline">
+        <span class="punit">${esc(it.unit||'')}</span>
+        <span class="plabel">入</span><span class="pbox"></span>
+        <span class="plabel">出</span><span class="pbox"></span>
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+  document.getElementById('printArea').innerHTML = html;
+  setTimeout(()=>{ window.print(); }, 50);
+}
+function printAppSheet(appKey){
+  const cfg = PRINT_APP_CONFIG[appKey];
+  const items = loadAppItems(cfg.key);
+  if(items.length===0){ toast('この品目マスタはまだ空っぽや。先にそのアプリで品目を登録するか、一括取込で品目マスタを取り込んでな'); return; }
+  preparePrintSheetGeneric(items, cfg.title);
+}
+
+/* ============================================================
+   品目マスタ Excel一括取込
+   ============================================================ */
+let rawRows=null;
+let noCatTarget='nikuko';
+let categoryTargets={};
+
+function onFileSelected(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=(ev)=>{
+    try{
+      const data=new Uint8Array(ev.target.result);
+      const wb=XLSX.read(data, {type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      if(!rows || rows.length<2){ toast('データが読み取れへんかった'); return; }
+      rawRows=rows;
+      const header=rows[0];
+      ['colName','colUnit','colCategory'].forEach(id=>{
+        const sel=document.getElementById(id);
+        const keepFirst = sel.options[0];
+        sel.innerHTML='';
+        if(id!=='colName') sel.appendChild(keepFirst);
+        header.forEach((h,i)=>{
+          const o=document.createElement('option'); o.value=i; o.textContent=h||('(列'+(i+1)+')');
+          sel.appendChild(o);
+        });
+      });
+      showStep(2);
+      toast(`${rows.length-1}行読み込んだで`);
+    }catch(err){ toast('読み込み失敗。.xlsxか.csvか確認してな'); }
+    e.target.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+function onMapChange(){}
+function onCategoryColChange(){
+  const has = document.getElementById('colCategory').value!=='';
+  document.getElementById('noCatWrap').style.display = has ? 'none':'block';
+}
+document.querySelectorAll('#noCatChips button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('#noCatChips button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    noCatTarget=b.dataset.t;
+  });
+});
+function getParsedRows(){
+  const nameIdx=parseInt(document.getElementById('colName').value);
+  const unitVal=document.getElementById('colUnit').value;
+  const catVal=document.getElementById('colCategory').value;
+  const unitIdx = unitVal==='' ? null : parseInt(unitVal);
+  const catIdx = catVal==='' ? null : parseInt(catVal);
+  return rawRows.slice(1)
+    .map(r=>({
+      name: String(r[nameIdx]||'').trim(),
+      unit: unitIdx!==null ? String(r[unitIdx]||'').trim() : '',
+      category: catIdx!==null ? String(r[catIdx]||'').trim() : ''
+    }))
+    .filter(r=>r.name);
+}
+function goStep3(){
+  if(!document.getElementById('colName').value){ toast('品目名の列を選んでな'); return; }
+  const parsed = getParsedRows();
+  const catIdx = document.getElementById('colCategory').value;
+  if(catIdx===''){
+    window._parsedRows = parsed.map(r=>({...r, category:'__all__'}));
+    categoryTargets = {'__all__': noCatTarget};
+    renderSummaryOnly();
+    showStep(4);
+    return;
+  }
+  window._parsedRows = parsed;
+  const cats=[];
+  parsed.forEach(r=>{ if(r.category && !cats.includes(r.category)) cats.push(r.category); });
+  const wrap=document.getElementById('categoryList'); wrap.innerHTML='';
+  cats.forEach(cat=>{
+    const count = parsed.filter(r=>r.category===cat).length;
+    if(!(cat in categoryTargets)) categoryTargets[cat]='skip';
+    const row=document.createElement('div'); row.className='catrow';
+    row.innerHTML=`
+      <div>
+        <div class="cname">${esc(cat)}</div>
+        <div class="ccount">${count}件</div>
+      </div>
+      <div class="segchips" data-cat="${esc(cat)}">
+        <button type="button" class="t-nikuko${categoryTargets[cat]==='nikuko'?' on':''}" data-t="nikuko">肉</button>
+        <button type="button" class="t-sozai${categoryTargets[cat]==='sozai'?' on':''}" data-t="sozai">惣</button>
+        <button type="button" class="t-skip${categoryTargets[cat]==='skip'?' on':''}" data-t="skip">除外</button>
+      </div>`;
+    wrap.appendChild(row);
+  });
+  wrap.querySelectorAll('.segchips').forEach(seg=>{
+    const cat = seg.dataset.cat;
+    seg.querySelectorAll('button').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+        b.classList.add('on');
+        categoryTargets[cat]=b.dataset.t;
+      });
+    });
+  });
+  showStep(3);
+}
+function computeCounts(){
+  const rows = window._parsedRows || [];
+  let n=0,s=0,k=0;
+  rows.forEach(r=>{
+    const t = categoryTargets[r.category] || 'skip';
+    if(t==='nikuko') n++; else if(t==='sozai') s++; else k++;
+  });
+  return {n,s,k};
+}
+function renderSummaryOnly(){
+  const c = computeCounts();
+  document.getElementById('sumNikuko').textContent=c.n;
+  document.getElementById('sumSozai').textContent=c.s;
+  document.getElementById('sumSkip').textContent=c.k;
+}
+function goStep4(){
+  renderSummaryOnly();
+  showStep(4);
+}
+function confirmImport(){
+  const rows = window._parsedRows || [];
+  if(rows.length===0){ toast('取り込むデータがないで'); return; }
+  let nikukoItems = loadAppItems('nikukocho_items');
+  let sozaiItems = loadAppItems('sozaicho_items');
+  let addedN=0, addedS=0, dupN=0, dupS=0;
+  rows.forEach(r=>{
+    const t = categoryTargets[r.category] || 'skip';
+    if(t==='nikuko'){
+      if(nikukoItems.find(i=>i.name===r.name)){ dupN++; return; }
+      nikukoItems.push({id:uid(), name:r.name, unit:r.unit||'kg', threshold:0});
+      addedN++;
+    } else if(t==='sozai'){
+      if(sozaiItems.find(i=>i.name===r.name)){ dupS++; return; }
+      sozaiItems.push({id:uid(), name:r.name, unit:r.unit||'個', threshold:0, price:0});
+      addedS++;
+    }
+  });
+  saveAppItems('nikukocho_items', nikukoItems);
+  saveAppItems('sozaicho_items', sozaiItems);
+  document.getElementById('resultText').innerHTML =
+    `肉庫帳に <b>${addedN}件</b> 追加（重複${dupN}件スキップ）<br>`+
+    `惣菜帳に <b>${addedS}件</b> 追加（重複${dupS}件スキップ）<br><br>`+
+    `それぞれのアプリを開いたら、もう品目マスタに反映されてるはずやで。`;
+  showStep(5);
+}
+</script>
+</body>
+</html>
