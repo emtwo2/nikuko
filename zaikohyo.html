@@ -227,14 +227,15 @@ function daysBetween(d1,d2){
   return Math.round((b-a)/86400000);
 }
 function avgDailyOutAdaptive(evs, today){
-  if(evs.length===0) return 0;
-  let earliest = evs[0].date;
-  evs.forEach(e=>{ if(e.date<earliest) earliest=e.date; });
+  const outEvs = evs.filter(e=>e.type==='out');
+  if(outEvs.length===0) return 0;
+  let earliest = outEvs[0].date;
+  outEvs.forEach(e=>{ if(e.date<earliest) earliest=e.date; }); /* 棚卸し等の"入"だけの日は起点にしない */
   const cap = addDays(today, -13); /* データが2週間超あっても直近2週間までに制限(直近の忙しさをより反映させるため) */
   const start = earliest > cap ? earliest : cap;
-  const relevant = evs.filter(e=>e.type==='out' && e.date>=start && e.date<=today); /* 今日の分も含める */
+  const relevant = outEvs.filter(e=>e.date>=start && e.date<=today); /* 今日の分も含める */
   const total = relevant.reduce((s,e)=>s+e.qty,0);
-  const daysSpan = daysBetween(start, today) + 1; /* 追跡開始日〜今日までの日数(今日を含む) */
+  const daysSpan = daysBetween(start, today) + 1; /* 出の初日〜今日までの日数(今日を含む) */
   return r3(total/daysSpan);
 }
 
