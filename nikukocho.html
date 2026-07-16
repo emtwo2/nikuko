@@ -224,31 +224,7 @@
   }
   .hint{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; }
   .divider{ height:1px; background:var(--line); margin:18px 0; }
-
-  /* ---------- 記入用シート印刷 ---------- */
-  #printArea{ display:none; }
-  @media print{
-    @page{ size: A4 portrait; margin: 12mm; }
-    body *{ visibility:hidden; }
-    #printArea, #printArea *{ visibility:visible; }
-    #printArea{ display:block; position:absolute; top:0; left:0; width:100%; }
-    .printtitle{ font-size:15px; font-weight:800; margin:0 0 4px; color:#000; }
-    .printsub{ font-size:10px; color:#333; margin:0 0 4px; }
-    .printhead{ display:flex; gap:16px; font-size:10.5px; margin-bottom:8px; }
-    .printhead span{ border-bottom:1px solid #666; padding:2px 20px 2px 2px; }
-    .printcols{ column-gap:6mm; }
-    .printrow{
-      break-inside:avoid; display:block;
-      padding:3px 0; border-bottom:1px dotted #999;
-    }
-    .printrow .pname{ font-size:8.6px; font-weight:700; line-height:1.25; word-break:break-all; }
-    .printrow .pboxline{ display:flex; align-items:center; gap:4px; margin-top:1.5px; }
-    .printrow .punit{ color:#666; font-size:7.5px; width:9mm; flex:none; }
-    .printrow .plabel{ color:#555; flex:none; }
-    .printrow .pbox{ display:inline-block; width:9mm; height:3.6mm; border:1px solid #888; flex:none; margin-right:3mm; }
-  }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -358,39 +334,6 @@
       <p class="hint">エクスポートする記録に、この名前が添えられるで。複数人で使う時に誰の記録か分かるようにするためのもの。</p>
     </div>
 
-    <div class="section-title">Excelから品目を取り込む</div>
-    <div class="card">
-      <p class="hint">SKUマスタなどのExcel(.xlsx)・CSVファイルをそのまま読み込んで、品目名の列を選ぶだけで一括登録できるで。保管場所や在庫状態の列があっても無視して品目名だけ拾うから、既存のファイルをそのまま使ってな。</p>
-      <div style="height:10px"></div>
-      <input type="file" id="excelFileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="onExcelSelected(event)">
-      <button class="btn ghost" onclick="document.getElementById('excelFileInput').click()">Excel/CSVファイルを選ぶ</button>
-
-      <div id="excelMapArea" style="display:none; margin-top:16px;">
-        <label class="field">
-          <span class="lbl">品目名が入っている列</span>
-          <select id="excelNameCol" onchange="updateExcelPreview()"></select>
-        </label>
-        <label class="field">
-          <span class="lbl">単位の列（任意）</span>
-          <select id="excelUnitCol" onchange="onExcelUnitColChange()">
-            <option value="">使わない（下のデフォルト単位を使う）</option>
-          </select>
-        </label>
-        <label class="field" id="excelDefaultUnitWrap">
-          <span class="lbl">単位列を使わない場合、この取り込み分は全部</span>
-          <div class="chipwrap" id="excelDefaultUnitChips">
-            <button type="button" class="chip selected" data-unit="kg">kg</button>
-            <button type="button" class="chip" data-unit="個">個</button>
-            <button type="button" class="chip" data-unit="パック">パック</button>
-          </div>
-        </label>
-        <p class="hint" id="excelPreview" style="margin-bottom:10px;"></p>
-        <button class="btn" onclick="confirmExcelImport()">この内容で取り込む</button>
-        <div style="height:8px"></div>
-        <button class="btn ghost" onclick="cancelExcelImport()" style="border-color:var(--ink-soft); color:var(--ink-soft);">キャンセル</button>
-      </div>
-    </div>
-
     <div class="section-title">品目マスタ</div>
     <div class="card">
       <div id="itemMasterList"></div>
@@ -427,47 +370,6 @@
       <button class="btn ghost" onclick="addSupplier()">業者を追加</button>
     </div>
 
-    <div class="section-title">Notion同期用エクスポート</div>
-    <div class="card">
-      <p class="hint">このアプリはiPad内だけで完結して動くで。1日の終わりに未同期の記録をコピーして、LINE等でゆーさんに送ってもらったら、まとめてClaudeとのチャットに貼り付けて反映するで。複数人で使う場合は、各自の端末でこの操作をしてな。</p>
-      <p style="margin:10px 0 14px;"><span class="num" id="unsyncedCount" style="font-weight:800; font-size:18px;">0</span> 件の未同期記録があります</p>
-      <button class="btn" onclick="doExport()">未同期の記録をコピー</button>
-      <div style="height:10px"></div>
-      <textarea class="exportbox" id="exportBox" placeholder="ここにエクスポート内容が表示されます" readonly></textarea>
-      <div style="height:10px"></div>
-      <button class="btn ghost" id="markSyncedBtn" onclick="markSynced()" disabled>↑ コピーした内容を同期済みにする</button>
-    </div>
-
-    <div class="section-title">記入用シートを印刷</div>
-    <div class="card">
-      <p class="hint">品目マスタの一覧を、手書きで数を書き込める空欄シートとして印刷できるで。棚卸しや、その日の入数・出数をまとめて手書きしたい時に使ってな。</p>
-      <div style="height:10px"></div>
-      <button class="btn" onclick="preparePrintSheet()">記入用シートを印刷する</button>
-    </div>
-
-    <div class="section-title">手書き集計を取り込む</div>
-    <div class="card">
-      <p class="hint">記入したシートを写真に撮って、Claudeとのチャットに送ると、数字を読み取ってこの形式のJSONで返してくれるで。それをここに貼り付けたら、納品・出庫の記録として一括登録される。品目名は品目マスタと一致してる必要があるから、貼り付け前に確認してな。</p>
-      <div style="height:8px"></div>
-      <textarea class="exportbox" id="handwrittenImportBox" placeholder='{"記録":[{"区分":"納品","品目":"ロース","数量":8,"日付":"2026-07-15"},{"区分":"出庫","品目":"バラ","数量":2,"日付":"2026-07-15"}]}'></textarea>
-      <div style="height:10px"></div>
-      <button class="btn" onclick="importHandwritten()">この内容を取り込む</button>
-    </div>
-
-    <!-- 加工帳が原体消費を記録しなくなったため、加工帳データ取込機能は廃止しました -->
-
-    <div class="section-title">バックアップ・復元</div>
-    <div class="card">
-      <p class="hint">大幅リニューアルする時や機種変更する時は、先にバックアップを取っておくと、新しいバージョンでも品目・仕入先・在庫の記録をそのまま引き継げるで。</p>
-      <div style="height:10px"></div>
-      <button class="btn" onclick="downloadBackup()">全データをバックアップ（ファイル保存）</button>
-      <div class="divider"></div>
-      <p class="hint">バックアップファイルから復元する場合はこちら。今のデータは上書きされるで。</p>
-      <div style="height:10px"></div>
-      <input type="file" id="restoreFileInput" accept="application/json" style="display:none;" onchange="restoreFromFile(event)">
-      <button class="btn ghost" onclick="document.getElementById('restoreFileInput').click()">バックアップから復元する</button>
-    </div>
-
     <div class="section-title">データ管理</div>
     <div class="card">
       <p class="hint">全データを消去します。実行前にNotionへの同期を済ませておくことをおすすめします。</p>
@@ -485,8 +387,6 @@
 
 </main>
 
-<div id="printArea"></div>
-
 <nav class="tabbar">
   <button data-screen="screen-in"><span class="dot"></span>納品</button>
   <button data-screen="screen-out"><span class="dot"></span>出庫</button>
@@ -500,9 +400,9 @@
 <script>
 /* ---------- バージョン情報 ---------- */
 /* 更新するたびにここを書き換える */
-const APP_VERSION = 'v14';
+const APP_VERSION = 'v15';
 const APP_VERSION_DATE = '2026-07-06';
-const APP_VERSION_NOTE = '加工帳が全面簡素化(歩留まり廃止)されたのに伴い、使われなくなった「加工帳のデータを取り込む」機能を削除。加工帳JSON取込で原体在庫を自動差引。';
+const APP_VERSION_NOTE = 'Excel取込・エクスポート・記入シート印刷・手書き取込・バックアップ機能を「管理帳」アプリに移動。肉庫帳は入力＋在庫確認＋履歴に専念する形に整理。加工帳JSON取込で原体在庫を自動差引。';
 document.getElementById('appVersion').textContent = APP_VERSION;
 document.getElementById('appVersionFull').textContent = `${APP_VERSION}（${APP_VERSION_DATE}）`;
 document.getElementById('appVersionNote').textContent = APP_VERSION_NOTE;
@@ -787,7 +687,6 @@ function refreshBadges(lowCountKnown){
   const badge=document.getElementById('tabBadge');
   if(lowCount>0){ badge.style.display='inline-block'; badge.textContent=lowCount; }
   else { badge.style.display='none'; }
-  document.getElementById('unsyncedCount').textContent = logs.filter(l=>!l.synced).length;
 }
 
 /* ---------- 履歴タブ ---------- */
@@ -917,89 +816,6 @@ function addItem(){
   toast(`「${name}」を登録したで`);
   renderSettings();
 }
-
-/* ---------- Excel/CSV取込 ---------- */
-let excelRows=null;
-let excelDefaultUnit='kg';
-document.querySelectorAll('#excelDefaultUnitChips .chip').forEach(b=>{
-  b.addEventListener('click', ()=>{
-    document.querySelectorAll('#excelDefaultUnitChips .chip').forEach(x=>x.classList.remove('selected'));
-    b.classList.add('selected');
-    excelDefaultUnit=b.dataset.unit;
-    updateExcelPreview();
-  });
-});
-function onExcelUnitColChange(){
-  const has = document.getElementById('excelUnitCol').value!=='';
-  document.getElementById('excelDefaultUnitWrap').style.display = has ? 'none':'block';
-  updateExcelPreview();
-}
-function onExcelSelected(e){
-  const file=e.target.files[0];
-  if(!file) return;
-  const reader=new FileReader();
-  reader.onload=(ev)=>{
-    try{
-      const data=new Uint8Array(ev.target.result);
-      const wb=XLSX.read(data, {type:'array'});
-      const ws=wb.Sheets[wb.SheetNames[0]];
-      const rows=XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
-      if(!rows || rows.length<2){ toast('データが読み取れへんかった（1行しかないみたい）'); return; }
-      excelRows=rows;
-      const header=rows[0];
-      const nameSel=document.getElementById('excelNameCol');
-      const unitSel=document.getElementById('excelUnitCol');
-      nameSel.innerHTML = header.map((h,i)=>`<option value="${i}">${esc(String(h||'(列'+(i+1)+')'))}</option>`).join('');
-      unitSel.innerHTML = '<option value="">使わない（下のデフォルト単位を使う）</option>' +
-        header.map((h,i)=>`<option value="${i}">${esc(String(h||'(列'+(i+1)+')'))}</option>`).join('');
-      document.getElementById('excelDefaultUnitWrap').style.display='block';
-      document.getElementById('excelMapArea').style.display='block';
-      updateExcelPreview();
-      toast(`${rows.length-1}行読み込んだで。品目名の列を確認してな`);
-    }catch(err){
-      toast('ファイルの読み込みに失敗したで。.xlsxか.csvか確認してな');
-    }
-    e.target.value='';
-  };
-  reader.readAsArrayBuffer(file);
-}
-function updateExcelPreview(){
-  if(!excelRows) return;
-  const nameIdx=parseInt(document.getElementById('excelNameCol').value);
-  const dataRows=excelRows.slice(1).filter(r=> String(r[nameIdx]||'').trim()!=='');
-  const names=dataRows.slice(0,5).map(r=>String(r[nameIdx]).trim());
-  const unitColVal=document.getElementById('excelUnitCol').value;
-  const unitNote = unitColVal==='' ? `単位は全部「${excelDefaultUnit}」として取り込むで` : '選んだ列の値をそのまま単位として使うで';
-  document.getElementById('excelPreview').textContent =
-    `${dataRows.length}件が対象（例: ${names.join('、')}${dataRows.length>5?' ...':''}）／${unitNote}`;
-}
-function cancelExcelImport(){
-  excelRows=null;
-  document.getElementById('excelMapArea').style.display='none';
-}
-function confirmExcelImport(){
-  if(!excelRows){ toast('先にファイルを選んでな'); return; }
-  const nameIdx=parseInt(document.getElementById('excelNameCol').value);
-  const unitColVal=document.getElementById('excelUnitCol').value;
-  const unitIdx = unitColVal==='' ? null : parseInt(unitColVal);
-  let added=0, dup=0, empty=0;
-  excelRows.slice(1).forEach(r=>{
-    const name=String(r[nameIdx]||'').trim();
-    if(!name){ empty++; return; }
-    if(items.find(i=>i.name===name)){ dup++; return; }
-    let unit = excelDefaultUnit;
-    if(unitIdx!==null){
-      const cell=String(r[unitIdx]||'').trim();
-      if(cell) unit=cell;
-    }
-    items.push({id:uid(), name, unit, threshold:0});
-    added++;
-  });
-  saveItems(items);
-  toast(`${added}件取り込んだで（重複${dup}件スキップ、空欄${empty}件無視）。アラート閾値は0で入ってるから、必要なら一覧から個別に設定してな`);
-  cancelExcelImport();
-  renderSettings();
-}
 function deleteItem(id){
   const hasLogs = logs.some(l=>l.itemId===id);
   const msg = hasLogs ? 'この品目には記録履歴があるで。削除すると一覧上は「削除済み品目」と表示されるようになるけど、履歴は残る。削除する？' : 'この品目を削除する？';
@@ -1007,147 +823,6 @@ function deleteItem(id){
   items = items.filter(i=>i.id!==id);
   saveItems(items);
   renderSettings();
-}
-
-/* ---------- 加工帳取込 ---------- */
-/* ---------- 記入用シート印刷 ---------- */
-function preparePrintSheet(){
-  if(items.length===0){ toast('先に品目を登録してな'); return; }
-  const maxRowsPerCol = 26;
-  const cols = Math.min(4, Math.max(1, Math.ceil(items.length / maxRowsPerCol)));
-  let html = `<div class="printtitle">肉庫帳 ・ 記入用シート</div>`;
-  html += `<div class="printsub">品目数: ${items.length}</div>`;
-  html += `<div class="printhead"><span>日付：　　　　　　</span><span>担当者：　　　　　　</span></div>`;
-  html += `<div class="printcols" style="column-count:${cols};">`;
-  items.forEach(it=>{
-    html += `<div class="printrow">
-      <div class="pname">${esc(it.name)}</div>
-      <div class="pboxline">
-        <span class="punit">${esc(it.unit||'')}</span>
-        <span class="plabel">入</span><span class="pbox"></span>
-        <span class="plabel">出</span><span class="pbox"></span>
-      </div>
-    </div>`;
-  });
-  html += `</div>`;
-  document.getElementById('printArea').innerHTML = html;
-  setTimeout(()=>{ window.print(); }, 50);
-}
-
-/* ---------- 手書き集計取込 ---------- */
-function importHandwritten(){
-  const text=document.getElementById('handwrittenImportBox').value.trim();
-  if(!text){ toast('JSONを貼り付けてな'); return; }
-  let data;
-  try{ data=JSON.parse(text); }catch(e){ toast('JSONの形式が読めへんかったわ'); return; }
-  const records = data.記録 || data.records || [];
-  if(!Array.isArray(records) || records.length===0){ toast('記録データが見つからへんで'); return; }
-  let added=0, dup=0, unknown=0, invalid=0;
-  records.forEach(r=>{
-    const kubun=r.区分, name=r.品目, qty=parseFloat(r.数量), date=r.日付;
-    if(!kubun || !name || !qty || !date){ invalid++; return; }
-    const it=items.find(i=>i.name===name);
-    if(!it){ unknown++; return; }
-    const type = kubun==='納品' ? 'in' : (kubun==='出庫' ? 'out' : null);
-    if(!type){ invalid++; return; }
-    const key=`hw|${date}|${it.id}|${qty}|${type}`;
-    if(logs.find(l=>l.hwKey===key)){ dup++; return; }
-    const rec = {id:uid(), type, itemId:it.id, qty, date, ts:Date.now(), synced:false, hwKey:key};
-    if(type==='in'){ rec.price = r.単価 || 0; rec.supplier = r.仕入先 || ''; }
-    else { rec.reason = r.理由 || '使用'; }
-    logs.push(rec);
-    added++;
-  });
-  saveLogs(logs);
-  document.getElementById('handwrittenImportBox').value='';
-  let msg=`${added}件取り込んだで`;
-  if(dup) msg+=`（重複${dup}件スキップ）`;
-  if(unknown) msg+=`（品目不一致${unknown}件、品目マスタの名前と合ってるか確認してな）`;
-  if(invalid) msg+=`（データ不足${invalid}件）`;
-  toast(msg);
-  refreshBadges();
-  renderHistory();
-}
-
-/* 加工帳連携(importKako)は廃止しました。加工帳が原体消費を記録しなくなったため。 */
-
-/* ---------- エクスポート ---------- */
-function doExport(){
-  const unsynced = logs.filter(l=>!l.synced);
-  if(unsynced.length===0){ toast('未同期の記録はないで'); return; }
-  const records = unsynced.map(l=>{
-    const it=items.find(i=>i.id===l.itemId);
-    const base = { 区分: l.type==='in'?'納品':'出庫', 品目: it?it.name:'(削除済み)', 単位: it?it.unit:'', 数量: l.qty, 日付: l.date };
-    if(l.type==='in'){ base.単価 = l.price||0; base.仕入先 = l.supplier||''; if(l.boxes) base.箱内訳=l.boxes; }
-    else { base.理由 = l.reason||''; }
-    return base;
-  });
-  const payload = { 使用者: loadStaffName()||'(未設定)', エクスポート日時: new Date().toLocaleString('ja-JP'), 記録: records };
-  const text = JSON.stringify(payload, null, 2);
-  const box = document.getElementById('exportBox');
-  box.value = text;
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(()=>toast('コピーしたで。LINE等で送るか、Claudeのチャットに貼り付けてな')).catch(()=>{
-      box.select(); toast('自動コピーできんかった。手動で選択してコピーしてな');
-    });
-  } else {
-    box.select(); toast('このテキストを選択してコピーしてな');
-  }
-  document.getElementById('markSyncedBtn').disabled=false;
-  window._pendingSyncIds = unsynced.map(l=>l.id);
-}
-function markSynced(){
-  if(!window._pendingSyncIds){ toast('先にコピーしてな'); return; }
-  logs = logs.map(l=> window._pendingSyncIds.includes(l.id) ? {...l, synced:true} : l);
-  saveLogs(logs);
-  window._pendingSyncIds=null;
-  document.getElementById('markSyncedBtn').disabled=true;
-  document.getElementById('exportBox').value='';
-  toast('同期済みにしたで');
-  refreshBadges();
-  renderHistory();
-}
-function downloadBackup(){
-  const payload = { app:'肉庫帳', version:1, exportedAt:new Date().toISOString(), items, suppliers, logs };
-  const text = JSON.stringify(payload, null, 2);
-  const blob = new Blob([text], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `肉庫帳バックアップ_${todayStr()}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(()=>URL.revokeObjectURL(url), 2000);
-  toast('バックアップファイルを保存したで');
-}
-function restoreFromFile(e){
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = ()=>{
-    try{
-      const data = JSON.parse(reader.result);
-      if(!Array.isArray(data.items) || !Array.isArray(data.logs)){
-        toast('このファイルは肉庫帳のバックアップやなさそうやで'); e.target.value=''; return;
-      }
-      const when = data.exportedAt ? data.exportedAt.slice(0,10) : '日付不明';
-      if(!confirm(`このバックアップ（${when}時点）で今のデータを上書きする？元に戻せへんで。`)){ e.target.value=''; return; }
-      items = data.items; saveItems(items);
-      suppliers = Array.isArray(data.suppliers) ? data.suppliers : []; saveSuppliers(suppliers);
-      logs = data.logs; saveLogs(logs);
-      selectedInItem = items[0]?.id || null;
-      selectedOutItem = items[0]?.id || null;
-      selectedSupplier = null; inSupplierCustomMode = false;
-      toast(`${when}時点のバックアップを復元したで`);
-      renderSettings(); renderStock(); renderHistory();
-      renderInItemSelect(); renderInSupplierChips(); renderOutItemSelect();
-    }catch(err){
-      toast('ファイルの読み込みに失敗したで。JSON形式か確認してな');
-    }
-    e.target.value='';
-  };
-  reader.readAsText(file);
 }
 
 function resetAll(){
