@@ -341,7 +341,7 @@ function renderTable(kind){
     const ym = document.getElementById(isMeat?'meatMonth':'sozaiMonth').value || todayStr().slice(0,7);
     const r = monthRange(ym); start=r.start; end=r.end;
   } else {
-    start = todayStr(); end = addDays(start, 13);
+    start = addDays(todayStr(), -7); end = addDays(start, 13);
   }
 
   const {dates, result} = buildDailyRows(items, eventsByItem, start, end);
