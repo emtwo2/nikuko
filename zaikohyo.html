@@ -383,7 +383,7 @@ function renderTable(kind){
         } else if(avgOutByItem[it.id]>0){
           if(projRunning[it.id]===null) projRunning[it.id] = day.bal;
           projRunning[it.id] = r3(projRunning[it.id] - avgOutByItem[it.id]);
-          outTxt = '〜'+avgOutByItem[it.id];
+          outTxt = '('+avgOutByItem[it.id]+')';
           outCls = `${cls} estimate`;
           displayBal = projRunning[it.id];
           balCls = `${cls} estimate`;
@@ -398,7 +398,7 @@ function renderTable(kind){
 
   tableEl.innerHTML = `<thead>${h1}${h2}</thead><tbody>${body}</tbody>`;
   if(mode==='2weeks'){
-    tableEl.insertAdjacentHTML('afterend', '<p class="hint" style="margin-top:8px;">※「〜」の数字は、これまで記録された分の平均出数（最大直近2週間）を目安として表示してるだけで、実績やないで。ゼロやった日も日数として含めて計算してる。日付が変わると自動で更新される。</p>');
+    tableEl.insertAdjacentHTML('afterend', '<p class="hint" style="margin-top:8px;">※カッコ付きの数字は、これまで記録された分の平均出数（最大直近2週間）を目安として表示してるだけで、実績やないで。ゼロやった日も日数として含めて計算してる。日付が変わると自動で更新される。</p>');
   }
   lastRender[kind] = {items, dates, result};
 }
