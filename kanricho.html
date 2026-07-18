@@ -91,13 +91,17 @@
   /* ---------- 記入用シート印刷 ---------- */
   #printArea{ display:none; }
   @media print{
-    @page{ size: A4 portrait; margin: 12mm; }
+    @page{ size: A4 portrait; margin: 22mm 12mm 12mm 12mm; }
     body *{ visibility:hidden; }
     #printArea, #printArea *{ visibility:visible; }
     #printArea{ display:block; position:absolute; top:0; left:0; width:100%; }
     .printtitle{ font-size:15px; font-weight:800; margin:0 0 4px; color:#000; }
     .printsub{ font-size:10px; color:#333; margin:0 0 4px; }
-    .printhead{ display:flex; gap:16px; font-size:10.5px; margin-bottom:8px; }
+    .printhead{
+      position:fixed; top:-16mm; left:0; right:0;
+      display:flex; gap:16px; font-size:10.5px; padding-bottom:4px;
+      border-bottom:1px solid #ccc; background:#fff;
+    }
     .printhead span{ border-bottom:1px solid #666; padding:2px 20px 2px 2px; }
     .printcols{ column-gap:6mm; }
     .printrow{ break-inside:avoid; display:block; padding:4px 0; border-bottom:1px dotted #999; }
