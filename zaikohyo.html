@@ -135,6 +135,13 @@
     table.printtable td.printbal{ font-weight:800; }
     table.printtable tr.printtoday td{ background:#f2ecd8 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   }
+  .toast{
+    position:fixed; left:50%; bottom:30px; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:#fff; padding:12px 20px; border-radius:30px;
+    font-size:14px; font-weight:600; opacity:0; pointer-events:none; z-index:60;
+    transition:all .25s ease; max-width:85%; text-align:center;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
@@ -188,6 +195,7 @@
 </main>
 
 <div id="printArea"></div>
+<div class="toast" id="toast"></div>
 
 <nav class="tabbar">
   <button data-screen="screen-meat"><span class="dot"></span>肉系</button>
@@ -201,6 +209,13 @@ document.getElementById('appVersion').textContent = APP_VERSION;
 
 /* ---------- ユーティリティ ---------- */
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+let toastTimer=null;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'), 2000);
+}
 function r3(n){ return Math.round(n*1000)/1000; }
 function fmtDate(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function todayStr(){ return fmtDate(new Date()); }
