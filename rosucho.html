@@ -608,12 +608,25 @@ function renderSettings(){
   document.getElementById('staffName').value = loadStaffName();
   const wrap=document.getElementById('productMasterList'); wrap.innerHTML='';
   if(products.length===0){ wrap.innerHTML='<div class="empty">商品がまだないで</div>'; }
-  products.forEach(p=>{
+  products.forEach((p, idx)=>{
     const row=document.createElement('div'); row.className='itemrow';
-    row.innerHTML=`<div style="font-weight:700;">${esc(p.name)}</div><button class="del" onclick="deleteProduct('${p.id}')">削除</button>`;
+    row.innerHTML=`<div style="font-weight:700;">${esc(p.name)}</div>
+      <div style="display:flex; gap:2px; align-items:center;">
+        <button class="del" style="color:var(--ink-soft); ${idx===0?'opacity:.3;':''}" onclick="moveProduct('${p.id}',-1)" ${idx===0?'disabled':''}>↑</button>
+        <button class="del" style="color:var(--ink-soft); ${idx===products.length-1?'opacity:.3;':''}" onclick="moveProduct('${p.id}',1)" ${idx===products.length-1?'disabled':''}>↓</button>
+        <button class="del" onclick="deleteProduct('${p.id}')">削除</button>
+      </div>`;
     wrap.appendChild(row);
   });
   refreshBadges();
+}
+function moveProduct(id, dir){
+  const idx = products.findIndex(p=>p.id===id);
+  const newIdx = idx+dir;
+  if(idx<0 || newIdx<0 || newIdx>=products.length) return;
+  [products[idx], products[newIdx]] = [products[newIdx], products[idx]];
+  saveProducts(products);
+  renderSettings();
 }
 
 function addProduct(){
