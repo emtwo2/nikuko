@@ -545,7 +545,7 @@ function renderSettings(){
   document.getElementById('staffName').value = loadStaffName();
   const wrap=document.getElementById('itemMasterList'); wrap.innerHTML='';
   if(items.length===0){ wrap.innerHTML='<div class="empty">品目がまだないで</div>'; }
-  items.forEach(it=>{
+  items.forEach((it, idx)=>{
     const row=document.createElement('div'); row.className='itemrow'; row.style.flexWrap='wrap';
     row.innerHTML=`
       <div style="flex:1; min-width:140px;">
@@ -556,10 +556,22 @@ function renderSettings(){
         <span class="im">単価¥</span>
         <input type="number" inputmode="decimal" value="${it.price||0}" style="width:80px; padding:6px 8px; font-size:14px;" onchange="updateItemPrice('${it.id}', this.value)">
       </div>
-      <button class="del" onclick="deleteItem('${it.id}')">削除</button>`;
+      <div style="display:flex; gap:2px; align-items:center;">
+        <button class="del" style="color:var(--ink-soft); ${idx===0?'opacity:.3;':''}" onclick="moveItem('${it.id}',-1)" ${idx===0?'disabled':''}>↑</button>
+        <button class="del" style="color:var(--ink-soft); ${idx===items.length-1?'opacity:.3;':''}" onclick="moveItem('${it.id}',1)" ${idx===items.length-1?'disabled':''}>↓</button>
+        <button class="del" onclick="deleteItem('${it.id}')">削除</button>
+      </div>`;
     wrap.appendChild(row);
   });
   refreshBadges();
+}
+function moveItem(id, dir){
+  const idx = items.findIndex(i=>i.id===id);
+  const newIdx = idx+dir;
+  if(idx<0 || newIdx<0 || newIdx>=items.length) return;
+  [items[idx], items[newIdx]] = [items[newIdx], items[idx]];
+  saveItems();
+  renderSettings();
 }
 function updateItemPrice(id, val){
   const p = parseFloat(val)||0;
