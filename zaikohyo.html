@@ -349,6 +349,32 @@ document.querySelectorAll('#sozaiModeWrap button').forEach(b=>{
 
 /* ---------- テーブル描画 ---------- */
 let lastRender={};
+function computeDisplayData(items, dates, result, mode, today, avgOutByItem){
+  const display = {};
+  items.forEach(it=>{
+    display[it.id] = {};
+    let projRunning = null;
+    dates.forEach(d=>{
+      const day = result[it.id].days.find(x=>x.date===d);
+      let outVal = day.out, outIsEst=false, bal=day.bal, balIsEst=false;
+      if((mode==='2weeks' || mode==='obon') && d>=today){
+        if(day.out || day.in){
+          projRunning = day.bal;
+        } else if(avgOutByItem[it.id]>0){
+          const mult = mode==='obon' ? obonMultiplier(d) : 1;
+          const estOut = r3(avgOutByItem[it.id] * mult);
+          if(projRunning===null) projRunning = day.bal;
+          projRunning = r3(projRunning - estOut);
+          outVal = estOut; outIsEst = true;
+          bal = projRunning; balIsEst = true;
+        }
+      }
+      display[it.id][d] = {in:day.in, out:outVal, outIsEst, bal, balIsEst};
+    });
+  });
+  return display;
+}
+
 function renderTable(kind){
   const isMeat = kind==='meat';
   const mode = isMeat ? meatMode : sozaiMode;
@@ -387,8 +413,7 @@ function renderTable(kind){
   h2 += '</tr>';
 
   let body = '';
-  const projRunning = {};
-  items.forEach(it=> projRunning[it.id] = null);
+  const displayData = computeDisplayData(items, dates, result, mode, today, avgOutByItem);
   dates.forEach(d=>{
     const isToday = d===today;
     const dObj = new Date(d+'T00:00:00');
@@ -396,31 +421,15 @@ function renderTable(kind){
     body += `<tr>`;
     body += `<td class="${isToday?'today':''}">${d.slice(5).replace('-','/')}(${wd})</td>`;
     items.forEach(it=>{
-      const day = result[it.id].days.find(x=>x.date===d);
+      const dd = displayData[it.id][d];
       const cls = isToday ? 'today' : '';
-      const inTxt = day.in ? day.in : '';
-      let outTxt = day.out ? day.out : '';
-      let outCls = `${cls} ${!day.out?'zero':''}`;
-      let displayBal = day.bal;
-      let balCls = cls;
-      if((mode==='2weeks' || mode==='obon') && d>=today){
-        if(day.out || day.in){
-          /* 実績がある日は実際の残高をそのまま使い、見込み計算はリセット */
-          projRunning[it.id] = day.bal;
-        } else if(avgOutByItem[it.id]>0){
-          const mult = mode==='obon' ? obonMultiplier(d) : 1;
-          const estOut = r3(avgOutByItem[it.id] * mult);
-          if(projRunning[it.id]===null) projRunning[it.id] = day.bal;
-          projRunning[it.id] = r3(projRunning[it.id] - estOut);
-          outTxt = '('+estOut+')';
-          outCls = `${cls} estimate`;
-          displayBal = projRunning[it.id];
-          balCls = `${cls} estimate`;
-        }
-      }
-      body += `<td class="num ${cls} ${!day.in?'zero':''}">${inTxt}</td>`;
+      const inTxt = dd.in ? dd.in : '';
+      const outTxt = dd.outIsEst ? '('+dd.out+')' : (dd.out ? dd.out : '');
+      const outCls = `${cls} ${dd.outIsEst ? 'estimate' : (!dd.out?'zero':'')}`;
+      const balCls = `${cls} ${dd.balIsEst ? 'estimate' : ''}`;
+      body += `<td class="num ${cls} ${!dd.in?'zero':''}">${inTxt}</td>`;
       body += `<td class="num ${outCls}">${outTxt}</td>`;
-      body += `<td class="num bal ${balCls} ${displayBal===0?'zero':''}">${displayBal===0 ? '' : displayBal}</td>`;
+      body += `<td class="num bal ${balCls} ${dd.bal===0?'zero':''}">${dd.bal===0 ? '' : dd.bal}</td>`;
     });
     body += `</tr>`;
   });
@@ -431,7 +440,7 @@ function renderTable(kind){
   } else if(mode==='obon'){
     tableEl.insertAdjacentHTML('afterend', '<p class="hint" style="margin-top:8px;">※カッコ付きの数字は、普段の平均出数に「8/7〜10は1.2倍、8/11〜15は1.5倍、8/16は1.2倍、8/17〜18は通常通り」を掛けた見込みやで。実績やないから目安として使ってな。</p>');
   }
-  lastRender[kind] = {items, dates, result};
+  lastRender[kind] = {items, dates, result, displayData, mode};
 }
 
 /* ---------- 印刷 ---------- */
@@ -445,13 +454,15 @@ function preparePrint(kind){
   const data = lastRender[kind];
   if(!data || data.items.length===0){ toast(kind==='meat'?'肉系のデータがないで':'惣菜系のデータがないで'); return; }
   const isMeat = kind==='meat';
-  const mode = isMeat ? meatMode : sozaiMode;
+  const mode = data.mode;
   const modeLabel = mode==='month'
     ? (document.getElementById(isMeat?'meatMonth':'sozaiMonth').value || todayStr().slice(0,7)) + 'の月間表'
+    : mode==='obon'
+    ? 'お盆集計表（' + data.dates[0].slice(5).replace('-','/') + '〜' + data.dates[data.dates.length-1].slice(5).replace('-','/') + '）'
     : '直近2週間表（' + data.dates[0].slice(5).replace('-','/') + '〜' + data.dates[data.dates.length-1].slice(5).replace('-','/') + '）';
   const kindLabel = isMeat ? '肉系（加工帳）' : '惣菜系（惣菜帳）';
 
-  const {items, dates, result} = data;
+  const {items, dates, displayData} = data;
   const chunks = chunkArray(items, PRINT_CHUNK_SIZE);
   const today = todayStr();
 
@@ -470,8 +481,10 @@ function preparePrint(kind){
       const isToday = d===today;
       html += `<tr class="${isToday?'printtoday':''}"><td>${d.slice(5).replace('-','/')}</td>`;
       chunkItems.forEach(it=>{
-        const day = result[it.id].days.find(x=>x.date===d);
-        html += `<td>${day.in||''}</td><td>${day.out||''}</td><td class="printbal">${day.bal||''}</td>`;
+        const dd = displayData[it.id][d];
+        const outTxt = dd.outIsEst ? '('+dd.out+')' : (dd.out||'');
+        const balTxt = dd.balIsEst ? '('+dd.bal+')' : (dd.bal||'');
+        html += `<td>${dd.in||''}</td><td>${outTxt}</td><td class="printbal">${balTxt}</td>`;
       });
       html += `</tr>`;
     });
