@@ -59,10 +59,10 @@
     padding:16px; margin-bottom:12px;
   }
 
-  .modewrap{ display:flex; gap:8px; margin-bottom:14px; }
+  .modewrap{ display:flex; gap:6px; margin-bottom:14px; }
   .modewrap button{
-    flex:1; padding:11px; border-radius:20px; border:1.6px solid var(--line);
-    background:#fff; font-size:14px; font-weight:700; color:var(--ink);
+    flex:1; padding:10px 4px; border-radius:20px; border:1.6px solid var(--line);
+    background:#fff; font-size:12.5px; font-weight:700; color:var(--ink);
   }
   .modewrap button.selected{ background:var(--stamp); border-color:var(--stamp); color:#fff; }
 
@@ -115,7 +115,7 @@
   /* ---------- 印刷用 ---------- */
   #printArea{ display:none; }
   @media print{
-    @page{ size: A4 portrait; margin: 10mm; }
+    @page{ size: A4 landscape; margin: 10mm; }
     body *{ visibility:hidden; }
     #printArea, #printArea *{ visibility:visible; }
     #printArea{ display:block; position:absolute; top:0; left:0; width:100%; }
@@ -165,6 +165,7 @@
       <div class="modewrap" id="meatModeWrap">
         <button type="button" class="selected" data-mode="month">月間</button>
         <button type="button" data-mode="2weeks">直近2週間</button>
+        <button type="button" data-mode="obon">お盆集計</button>
       </div>
       <input type="month" id="meatMonth">
       <div class="tablewrap"><table class="ledger" id="meatTable"></table></div>
@@ -182,6 +183,7 @@
       <div class="modewrap" id="sozaiModeWrap">
         <button type="button" class="selected" data-mode="month">月間</button>
         <button type="button" data-mode="2weeks">直近2週間</button>
+        <button type="button" data-mode="obon">お盆集計</button>
       </div>
       <input type="month" id="sozaiMonth">
       <div class="tablewrap"><table class="ledger" id="sozaiTable"></table></div>
@@ -241,6 +243,14 @@ function daysBetween(d1,d2){
   const a=new Date(d1+'T00:00:00'), b=new Date(d2+'T00:00:00');
   return Math.round((b-a)/86400000);
 }
+function obonMultiplier(d){
+  if(d>='2026-08-07' && d<='2026-08-10') return 1.2;
+  if(d>='2026-08-11' && d<='2026-08-15') return 1.5;
+  if(d==='2026-08-16') return 1.2;
+  if(d>='2026-08-17' && d<='2026-08-18') return 1.0;
+  return 1.0;
+}
+
 function avgDailyOutAdaptive(evs, today){
   const outEvs = evs.filter(e=>e.type==='out');
   if(outEvs.length===0) return 0;
@@ -355,6 +365,8 @@ function renderTable(kind){
   if(mode==='month'){
     const ym = document.getElementById(isMeat?'meatMonth':'sozaiMonth').value || todayStr().slice(0,7);
     const r = monthRange(ym); start=r.start; end=r.end;
+  } else if(mode==='obon'){
+    start = todayStr(); end = '2026-08-18';
   } else {
     start = addDays(todayStr(), -7); end = addDays(start, 13);
   }
@@ -363,7 +375,7 @@ function renderTable(kind){
   const today = todayStr();
 
   const avgOutByItem = {};
-  if(mode==='2weeks'){
+  if(mode==='2weeks' || mode==='obon'){
     items.forEach(it=>{ avgOutByItem[it.id] = avgDailyOutAdaptive(eventsByItem[it.id]||[], today); });
   }
 
@@ -391,14 +403,16 @@ function renderTable(kind){
       let outCls = `${cls} ${!day.out?'zero':''}`;
       let displayBal = day.bal;
       let balCls = cls;
-      if(mode==='2weeks' && d>=today){
+      if((mode==='2weeks' || mode==='obon') && d>=today){
         if(day.out || day.in){
           /* 実績がある日は実際の残高をそのまま使い、見込み計算はリセット */
           projRunning[it.id] = day.bal;
         } else if(avgOutByItem[it.id]>0){
+          const mult = mode==='obon' ? obonMultiplier(d) : 1;
+          const estOut = r3(avgOutByItem[it.id] * mult);
           if(projRunning[it.id]===null) projRunning[it.id] = day.bal;
-          projRunning[it.id] = r3(projRunning[it.id] - avgOutByItem[it.id]);
-          outTxt = '('+avgOutByItem[it.id]+')';
+          projRunning[it.id] = r3(projRunning[it.id] - estOut);
+          outTxt = '('+estOut+')';
           outCls = `${cls} estimate`;
           displayBal = projRunning[it.id];
           balCls = `${cls} estimate`;
@@ -414,6 +428,8 @@ function renderTable(kind){
   tableEl.innerHTML = `<thead>${h1}${h2}</thead><tbody>${body}</tbody>`;
   if(mode==='2weeks'){
     tableEl.insertAdjacentHTML('afterend', '<p class="hint" style="margin-top:8px;">※カッコ付きの数字は、これまで記録された分の平均出数（最大直近2週間）を目安として表示してるだけで、実績やないで。ゼロやった日も日数として含めて計算してる。日付が変わると自動で更新される。</p>');
+  } else if(mode==='obon'){
+    tableEl.insertAdjacentHTML('afterend', '<p class="hint" style="margin-top:8px;">※カッコ付きの数字は、普段の平均出数に「8/7〜10は1.2倍、8/11〜15は1.5倍、8/16は1.2倍、8/17〜18は通常通り」を掛けた見込みやで。実績やないから目安として使ってな。</p>');
   }
   lastRender[kind] = {items, dates, result};
 }
