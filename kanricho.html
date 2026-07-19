@@ -571,6 +571,7 @@ const BACKUP_KEYS = [
   'kakocho_ships','shukkacho_staffname',
   'lossbook_products','lossbook_reports','lossbook_staffname',
 ];
+const ITEM_MASTER_KEYS = ['nikukocho_items','sozaicho_items','kakocho_items','lossbook_products'];
 function downloadAllBackup(){
   const bundle = {};
   let count=0;
@@ -616,6 +617,21 @@ function mergeArraysById(current, incoming){
   const toAdd = incoming.filter(x=>!existing.has(x[idField]));
   return { merged:[...current, ...toAdd], added:toAdd.length };
 }
+function mergeItemsPreservingOrder(current, incoming){
+  /* 品目マスタ専用: バックアップ側の並び順を採用しつつ、データ自体はローカル優先(ローカル編集を失わないため)。
+     ローカルにしかない品目は末尾に追加、バックアップにしかない新規品目はその位置のまま採用。 */
+  const currentById = new Map(current.map(x=>[x.id,x]));
+  const result = [];
+  const usedIds = new Set();
+  let added = 0;
+  incoming.forEach(x=>{
+    if(currentById.has(x.id)){ result.push(currentById.get(x.id)); }
+    else { result.push(x); added++; }
+    usedIds.add(x.id);
+  });
+  current.forEach(x=>{ if(!usedIds.has(x.id)){ result.push(x); usedIds.add(x.id); } });
+  return { merged: result, added };
+}
 function mergeAllBackup(e){
   const file = e.target.files[0];
   if(!file) return;
@@ -639,7 +655,9 @@ function mergeAllBackup(e){
           let current;
           try{ current = JSON.parse(localStorage.getItem(k) || '[]'); }catch(err){ current=[]; }
           if(!Array.isArray(current)) current=[];
-          const {merged, added} = mergeArraysById(current, incomingVal);
+          const {merged, added} = ITEM_MASTER_KEYS.includes(k)
+            ? mergeItemsPreservingOrder(current, incomingVal)
+            : mergeArraysById(current, incomingVal);
           localStorage.setItem(k, JSON.stringify(merged));
           totalAdded += added;
           mergedKeys++;
