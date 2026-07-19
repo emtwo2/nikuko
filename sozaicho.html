@@ -332,7 +332,13 @@ document.getElementById('appVersionNote').textContent = APP_VERSION_NOTE;
 /* ---------- データ層 (localStorage) ---------- */
 const LS_ITEMS='sozaicho_items', LS_LOGS='sozaicho_logs', LS_STAFFNAME='sozaicho_staffname';
 
-function loadItems(){ return JSON.parse(localStorage.getItem(LS_ITEMS) || 'null') || defaultItems(); }
+function loadItems(){
+  try{
+    const parsed = JSON.parse(localStorage.getItem(LS_ITEMS) || 'null');
+    if(Array.isArray(parsed)) return parsed;
+  }catch(e){ /* 壊れたデータが入ってた場合はデフォルトにフォールバック */ }
+  return defaultItems();
+}
 function saveItems(v){ localStorage.setItem(LS_ITEMS, JSON.stringify(v)); }
 function loadLogs(){ return JSON.parse(localStorage.getItem(LS_LOGS) || '[]'); }
 function saveLogs(v){ localStorage.setItem(LS_LOGS, JSON.stringify(v)); }
@@ -570,7 +576,7 @@ function moveItem(id, dir){
   const newIdx = idx+dir;
   if(idx<0 || newIdx<0 || newIdx>=items.length) return;
   [items[idx], items[newIdx]] = [items[newIdx], items[idx]];
-  saveItems();
+  saveItems(items);
   renderSettings();
 }
 function updateItemPrice(id, val){
