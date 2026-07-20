@@ -80,8 +80,12 @@
   .tablewrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--line); border-radius:var(--radius); background:var(--card); }
   table.ledger{ border-collapse:collapse; font-size:12px; white-space:nowrap; }
   table.ledger th, table.ledger td{ padding:7px 9px; text-align:right; border-bottom:1px solid var(--line); border-left:1px solid var(--line); }
-  table.ledger th:first-child, table.ledger td:first-child{
+  table.ledger tbody td:first-child{
     text-align:left; position:sticky; left:0; background:var(--card); border-left:none; z-index:2;
+    box-shadow:2px 0 3px -2px rgba(0,0,0,.15);
+  }
+  table.ledger thead tr:first-child th:first-child{
+    text-align:left; position:sticky; left:0; z-index:2;
     box-shadow:2px 0 3px -2px rgba(0,0,0,.15);
   }
   table.ledger thead th{ background:var(--stamp-soft); color:var(--stamp-deep); font-weight:800; font-size:10.5px; }
