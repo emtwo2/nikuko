@@ -322,9 +322,9 @@
 
 <script>
 /* ---------- バージョン情報 ---------- */
-const APP_VERSION = 'v8';
-const APP_VERSION_DATE = '2026-07-10';
-const APP_VERSION_NOTE = '記入用シートで品目名が長いと省略される不具合を修正。名前を折り返し表示にし、1列あたりの行数を調整。';
+const APP_VERSION = 'v9';
+const APP_VERSION_DATE = '2026-07-21';
+const APP_VERSION_NOTE = '品目マスタの並び替え(↑↓ボタン)機能を追加。並び替え時にデータが破損する重大バグを修正、読み込み時の防御処理も追加。';
 document.getElementById('appVersion').textContent = APP_VERSION;
 document.getElementById('appVersionFull').textContent = `${APP_VERSION}（${APP_VERSION_DATE}）`;
 document.getElementById('appVersionNote').textContent = APP_VERSION_NOTE;
