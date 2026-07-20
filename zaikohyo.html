@@ -155,10 +155,11 @@
     <span class="stamp-mark">表</span>
     <div>
       <h1>在庫表</h1>
-      <div class="sub">加工品 日次台帳 ・ <span id="appVersion" class="num"></span></div>
+      <div class="sub">加工品 日次台帳 ・ <span id="appVersion" class="num"></span>（<span id="appVersionDate"></span>）</div>
     </div>
   </div>
 </header>
+<div style="padding:8px 16px 0; font-size:11px; color:var(--ink-soft); line-height:1.6;" id="appVersionNote"></div>
 
 <main>
 
@@ -210,8 +211,12 @@
 
 <script>
 /* ---------- バージョン情報 ---------- */
-const APP_VERSION = 'v4';
+const APP_VERSION = 'v5';
+const APP_VERSION_DATE = '2026-07-21';
+const APP_VERSION_NOTE = '見出し行の固定表示バグ修正／印刷をA4横向きに変更／お盆集計タブ追加／印刷に見込み値が出ないバグ修正／タイムゾーンのバグ修正／見込み計算を直近2週間の適応型平均に変更';
 document.getElementById('appVersion').textContent = APP_VERSION;
+document.getElementById('appVersionDate').textContent = APP_VERSION_DATE;
+document.getElementById('appVersionNote').textContent = '更新: ' + APP_VERSION_NOTE;
 
 /* ---------- ユーティリティ ---------- */
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
