@@ -117,8 +117,9 @@
 
 <header class="app">
   <h1>管理帳</h1>
-  <div class="sub">データの取り込み・書き出し・バックアップを1ヶ所に</div>
+  <div class="sub">データの取り込み・書き出し・バックアップを1ヶ所に ・ <span id="appVersion" class="num"></span></div>
 </header>
+<div style="padding:8px 16px 0; font-size:11px; color:var(--ink-soft); line-height:1.6;" id="appVersionNote"></div>
 
 <main>
 
@@ -348,6 +349,12 @@
 <div id="printArea"></div>
 
 <script>
+const APP_VERSION = 'v2';
+const APP_VERSION_DATE = '2026-07-21';
+const APP_VERSION_NOTE = '記入用シートの日付欄を全ページに固定表示するよう変更。バックアップに「マージ復元」を追加し、品目マスタの並び順もバックアップ側に合わせて同期するよう改善。';
+document.getElementById('appVersion').textContent = APP_VERSION;
+document.getElementById('appVersionNote').textContent = '更新（'+APP_VERSION_DATE+'）: ' + APP_VERSION_NOTE;
+
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 function r3(n){ return Math.round(n*1000)/1000; }
