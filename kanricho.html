@@ -125,6 +125,15 @@
 
   <!-- Step0: メインメニュー -->
   <div class="step active" id="step0">
+    <div class="section-title">この端末のデータ状態</div>
+    <div class="card" id="statusCard">
+      <label class="field">
+        <span class="lbl">この端末の名前（例：iPhone／PC）</span>
+        <input type="text" id="deviceName" placeholder="例）iPhone" onchange="saveDeviceName(this.value)">
+      </label>
+      <div id="statusInfo" style="font-size:12.5px; color:var(--ink-soft); line-height:1.9;"></div>
+    </div>
+
     <div class="section-title">取り込む</div>
     <div class="card">
       <button class="btn" onclick="showStep(1)">品目マスタを取り込む（Excel/CSV）</button>
@@ -370,6 +379,7 @@ function toast(msg){
 function showStep(n){
   document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
   document.getElementById('step'+n).classList.add('active');
+  if(n===0){ document.getElementById('deviceName').value = loadDeviceName(); renderStatusInfo(); }
   if(n==='export') renderExportCount();
   if(n==='report'){ if(!document.getElementById('reportMonth').value) document.getElementById('reportMonth').value = todayStr().slice(0,7); renderReport(); }
   if(n==='loss') updateLossCount();
@@ -379,6 +389,49 @@ function loadAppItems(key){ try{ const v=JSON.parse(localStorage.getItem(key)); 
 function saveAppItems(key, v){ localStorage.setItem(key, JSON.stringify(v)); }
 function loadAppLogs(key){ try{ const v=JSON.parse(localStorage.getItem(key)); return Array.isArray(v)?v:[]; }catch(e){ return []; } }
 function saveAppLogs(key, v){ localStorage.setItem(key, JSON.stringify(v)); }
+
+/* ============================================================
+   この端末のデータ状態表示
+   ============================================================ */
+function loadDeviceName(){ return localStorage.getItem('kanricho_device_name') || ''; }
+function saveDeviceName(v){ localStorage.setItem('kanricho_device_name', v.trim()); renderStatusInfo(); }
+function fmtDateTime(iso){
+  if(!iso) return null;
+  const d = new Date(iso);
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  const hh=String(d.getHours()).padStart(2,'0'), mm=String(d.getMinutes()).padStart(2,'0');
+  return `${y}/${m}/${day} ${hh}:${mm}`;
+}
+function computeLastInputAt(){
+  const TRANSACTIONAL_KEYS = ['nikukocho_logs','sozaicho_logs','kakocho_production','kakocho_ships','lossbook_reports'];
+  let maxTs = 0;
+  TRANSACTIONAL_KEYS.forEach(k=>{
+    loadAppLogs(k).forEach(r=>{ if(r.ts && r.ts>maxTs) maxTs = r.ts; });
+  });
+  return maxTs>0 ? maxTs : null;
+}
+function renderStatusInfo(){
+  const el = document.getElementById('statusInfo');
+  const lastInputTs = computeLastInputAt();
+  const lastInputTxt = lastInputTs ? fmtDateTime(new Date(lastInputTs).toISOString()) : 'まだ記録なし';
+  const lastBackupAt = localStorage.getItem('kanricho_last_backup_at');
+  const lastBackupTxt = lastBackupAt ? fmtDateTime(lastBackupAt) : 'まだ取ってへん';
+
+  let restoreHtml = 'まだ復元してへん';
+  const restoreRaw = localStorage.getItem('kanricho_last_restore_info');
+  if(restoreRaw){
+    try{
+      const info = JSON.parse(restoreRaw);
+      const srcWhen = info.sourceExportedAt ? fmtDateTime(info.sourceExportedAt) : '日時不明';
+      restoreHtml = `${fmtDateTime(info.at)}（${esc(info.kind)}／元データ: ${esc(info.sourceDevice)}が${srcWhen}に取ったもの）`;
+    }catch(e){}
+  }
+
+  el.innerHTML = `
+    この端末の最終入力：<b>${esc(lastInputTxt)}</b><br>
+    この端末が最後にバックアップした日時：<b>${esc(lastBackupTxt)}</b><br>
+    この端末が最後に復元した内容：<b>${restoreHtml}</b>`;
+}
 
 /* ============================================================
    日々の入数・出数(手書き集計)取込
@@ -587,7 +640,8 @@ function downloadAllBackup(){
     if(raw!==null){ bundle[k]=raw; count++; }
   });
   if(count===0){ toast('バックアップできるデータがまだないで'); return; }
-  const payload = { app:'管理帳バックアップ', version:1, exportedAt:new Date().toISOString(), data:bundle };
+  const deviceName = loadDeviceName();
+  const payload = { app:'管理帳バックアップ', version:1, exportedAt:new Date().toISOString(), deviceName, data:bundle };
   const text = JSON.stringify(payload, null, 2);
   const blob = new Blob([text], {type:'application/json'});
   const url = URL.createObjectURL(blob);
@@ -595,7 +649,9 @@ function downloadAllBackup(){
   a.href = url; a.download = `全アプリバックアップ_${todayStr()}.json`;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  localStorage.setItem('kanricho_last_backup_at', new Date().toISOString());
   toast(`${count}項目をバックアップしたで`);
+  renderStatusInfo();
 }
 function restoreAllBackup(e){
   const file = e.target.files[0];
@@ -611,11 +667,22 @@ function restoreAllBackup(e){
       const keys = Object.keys(data.data);
       if(!confirm(`このバックアップ（${when}時点・${keys.length}項目）で今のデータを上書きする？元に戻せへんで。`)){ e.target.value=''; return; }
       keys.forEach(k=>{ localStorage.setItem(k, data.data[k]); });
+      recordRestoreInfo('上書き復元', data);
       toast(`${when}時点のバックアップを復元したで（${keys.length}項目）`);
+      renderStatusInfo();
     }catch(err){ toast('ファイルの読み込みに失敗したで。JSON形式か確認してな'); }
     e.target.value='';
   };
   reader.readAsText(file);
+}
+function recordRestoreInfo(kind, backupData){
+  const info = {
+    at: new Date().toISOString(),
+    kind,
+    sourceDevice: backupData.deviceName || '(端末名未設定)',
+    sourceExportedAt: backupData.exportedAt || null,
+  };
+  localStorage.setItem('kanricho_last_restore_info', JSON.stringify(info));
 }
 
 function mergeArraysById(current, incoming){
@@ -675,7 +742,9 @@ function mergeAllBackup(e){
           skippedKeys++;
         }
       });
+      recordRestoreInfo('マージ復元', data);
       toast(`マージ完了：${totalAdded}件を追加したで（対象${mergedKeys}項目）`);
+      renderStatusInfo();
     }catch(err){ toast('ファイルの読み込みに失敗したで。JSON形式か確認してな'); }
     e.target.value='';
   };
@@ -926,6 +995,8 @@ function confirmImport(){
     `それぞれのアプリを開いたら、もう品目マスタに反映されてるはずやで。`;
   showStep(5);
 }
+document.getElementById('deviceName').value = loadDeviceName();
+renderStatusInfo();
 </script>
 </body>
 </html>
